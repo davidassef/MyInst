@@ -1,45 +1,26 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import jwt from '@fastify/jwt';
 import { eq } from 'drizzle-orm';
-import { authRoutes } from '../src/routes/auth.js';
-import { workspaceRoutes } from '../src/routes/workspaces.js';
-import { projectRoutes } from '../src/routes/projects.js';
-import { contentRoutes } from '../src/routes/content.js';
-import { syncRoutes } from '../src/routes/sync.js';
-import { tagRoutes } from '../src/routes/tags.js';
-import { searchRoutes } from '../src/routes/search.js';
-import { profileRoutes } from '../src/routes/profiles.js';
-import { usageRoutes } from '../src/routes/usage.js';
+import { criarApp } from '../src/app.js';
+import { carregarAmbiente } from '../src/env.js';
 import { seedPlans } from '../src/db/seed.js';
 import { db } from '../src/db/index.js';
 import { plans, users } from '../src/db/schema.js';
-
-function criarApp() {
-  const app = Fastify();
-  app.register(cors, { origin: true });
-  app.register(jwt, { secret: 'test-secret' });
-  app.get('/health', async () => ({ status: 'ok' }));
-  app.register(authRoutes, { prefix: '/api/v1/auth' });
-  app.register(workspaceRoutes, { prefix: '/api/v1' });
-  app.register(projectRoutes, { prefix: '/api/v1' });
-  app.register(contentRoutes, { prefix: '/api/v1' });
-  app.register(syncRoutes, { prefix: '/api/v1/sync' });
-  app.register(tagRoutes, { prefix: '/api/v1/tags' });
-  app.register(searchRoutes, { prefix: '/api/v1' });
-  app.register(profileRoutes, { prefix: '/api/v1/profiles' });
-  app.register(usageRoutes, { prefix: '/api/v1/usage' });
-  return app;
-}
+import { montarUrlOAuthErro, montarUrlOAuthSucesso } from '../src/routes/oauth.js';
 
 describe('MyInst API', () => {
-  const app = criarApp();
+  let app: Awaited<ReturnType<typeof criarApp>>;
   let token: string;
   let apiKey: string;
+  let apiKeyId: string;
   const workspaceSecundarioSlug = 'cliente-acme';
 
   beforeAll(async () => {
+    app = await criarApp(carregarAmbiente({
+      ...process.env,
+      NODE_ENV: 'test',
+      JWT_SECRET: 'test-secret',
+      CORS_ORIGIN: 'http://localhost:5173',
+    }));
     await seedPlans();
     await app.ready();
   });
@@ -53,6 +34,57 @@ describe('MyInst API', () => {
       const res = await app.inject({ method: 'GET', url: '/health' });
       expect(res.statusCode).toBe(200);
       expect(res.json()).toHaveProperty('status', 'ok');
+    });
+
+    it('CORS aceita origem configurada', async () => {
+      const res = await app.inject({
+        method: 'OPTIONS',
+        url: '/health',
+        headers: {
+          origin: 'http://localhost:5173',
+          'access-control-request-method': 'GET',
+        },
+      });
+
+      expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+    });
+
+    it('CORS rejeita origem não configurada', async () => {
+      const res = await app.inject({
+        method: 'OPTIONS',
+        url: '/health',
+        headers: {
+          origin: 'https://evil.example',
+          'access-control-request-method': 'GET',
+        },
+      });
+
+      expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    });
+  });
+
+  describe('Ambiente', () => {
+    it('rejeita JWT_SECRET placeholder em produção', () => {
+      expect(() => carregarAmbiente({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://user:pass@localhost:5432/myinst',
+        JWT_SECRET: 'troque-por-um-secret-seguro-em-producao',
+        APP_URL: 'https://myinst.dev',
+        API_PUBLIC_URL: 'https://myinst.dev',
+        CORS_ORIGIN: 'https://myinst.dev',
+      })).toThrow('JWT_SECRET não pode usar valor placeholder');
+    });
+  });
+
+  describe('OAuth', () => {
+    it('monta URL de sucesso para retorno ao frontend', () => {
+      const url = montarUrlOAuthSucesso('https://myinst.dev/login', 'token-teste');
+      expect(url).toBe('https://myinst.dev/login?token=token-teste');
+    });
+
+    it('monta URL de erro para retorno ao frontend', () => {
+      const url = montarUrlOAuthErro('https://myinst.dev/login');
+      expect(url).toBe('https://myinst.dev/login?oauth_error=1');
     });
   });
 
@@ -120,6 +152,7 @@ describe('MyInst API', () => {
       expect(res.statusCode).toBe(201);
       const body = res.json();
       expect(body.data.key).toMatch(/^myinst_/);
+      apiKeyId = body.data.id;
       apiKey = body.data.key;
     });
 
@@ -148,6 +181,32 @@ describe('MyInst API', () => {
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().data.length).toBeGreaterThan(0);
+    });
+
+    it('DELETE /auth/api-keys/:id não remove chave de outro usuário', async () => {
+      const outroEmail = `outro-${Date.now()}@myinst.dev`;
+      const registro = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/register',
+        payload: { email: outroEmail, password: 'senha12345', displayName: 'Outro Usuário' },
+      });
+      const outroToken = registro.json().data.token;
+
+      const deleteRes = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/auth/api-keys/${apiKeyId}`,
+        headers: { authorization: `Bearer ${outroToken}` },
+      });
+
+      expect(deleteRes.statusCode).toBe(404);
+
+      const lista = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/api-keys',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const ids = lista.json().data.map((key: { id: string }) => key.id);
+      expect(ids).toContain(apiKeyId);
     });
 
     it('autenticação via API key funciona', async () => {

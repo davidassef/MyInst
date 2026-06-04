@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, salvarToken } from '@/lib/api';
 
@@ -10,6 +10,23 @@ export function LoginPage() {
   const [displayName, setDisplayName] = useState('');
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tokenOAuth = params.get('token');
+    const erroOAuth = params.get('oauth_error');
+
+    if (tokenOAuth) {
+      salvarToken(tokenOAuth);
+      navigate('/', { replace: true });
+      return;
+    }
+
+    if (erroOAuth) {
+      setErro('Não foi possível concluir o login OAuth.');
+      window.history.replaceState(null, '', '/login');
+    }
+  }, [navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

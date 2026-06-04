@@ -23,12 +23,18 @@ DATABASE_URL=postgresql://myinst:senha-segura@db:5432/myinst
 JWT_SECRET=gere-um-secret-longo-e-aleatorio
 PORT=3000
 NODE_ENV=production
+APP_URL=https://seudominio.com
+API_PUBLIC_URL=https://seudominio.com
+CORS_ORIGIN=https://seudominio.com
+WEB_OAUTH_SUCCESS_URL=https://seudominio.com/login
+OAUTH_CALLBACK_URL=https://seudominio.com
 ```
 
 ### 3. Suba os containers
 
 ```bash
 docker compose up -d
+pnpm db:deploy:schema
 ```
 
 ### docker-compose.yml
@@ -94,13 +100,13 @@ Para expor com HTTPS:
 ```nginx
 server {
     listen 443 ssl;
-    server_name myinst.seudominio.com;
+    server_name seudominio.com;
 
-    ssl_certificate /etc/letsencrypt/live/myinst.seudominio.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/myinst.seudominio.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/seudominio.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/seudominio.com/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3011;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -129,6 +135,11 @@ psql -h localhost -U myinst myinst < backup_20250101.sql
 |----------|:-----------:|-----------|---------|
 | `DATABASE_URL` | Sim | Connection string PostgreSQL | `postgresql://user:pass@host:5432/db` |
 | `JWT_SECRET` | Sim | Secret para assinar tokens JWT | String aleatória longa |
+| `APP_URL` | Sim em produção | URL pública da web | `https://seudominio.com` |
+| `API_PUBLIC_URL` | Sim em produção | URL pública da API | `https://seudominio.com` |
+| `CORS_ORIGIN` | Sim em produção | Origem permitida no CORS | `https://seudominio.com` |
+| `WEB_OAUTH_SUCCESS_URL` | Sim em produção | Retorno OAuth no frontend | `https://seudominio.com/login` |
+| `OAUTH_CALLBACK_URL` | Sim se OAuth estiver ativo | Base dos callbacks OAuth | `https://seudominio.com` |
 | `PORT` | Não | Porta do servidor (padrão: 3000) | `3000` |
 | `NODE_ENV` | Não | Ambiente (development/production) | `production` |
 

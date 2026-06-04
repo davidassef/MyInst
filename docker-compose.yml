@@ -5,9 +5,14 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://myinst:myinst-secret@db:5432/myinst
-      - JWT_SECRET=${JWT_SECRET:-troque-por-um-secret-seguro}
+      - JWT_SECRET=${JWT_SECRET:-preflight-secret-local-com-mais-de-32-caracteres}
+      - APP_URL=${APP_URL:-http://localhost:3000}
+      - API_PUBLIC_URL=${API_PUBLIC_URL:-http://localhost:3000}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - WEB_OAUTH_SUCCESS_URL=${WEB_OAUTH_SUCCESS_URL:-http://localhost:3000/login}
+      - OAUTH_CALLBACK_URL=${OAUTH_CALLBACK_URL:-http://localhost:3000}
       - PORT=3000
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-development}
     depends_on:
       db:
         condition: service_healthy

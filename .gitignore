@@ -7,5 +7,6 @@ dist/
 .pnpm-store/
 drizzle/
 coverage/
+backups/
 .DS_Store
 Thumbs.db

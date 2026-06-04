@@ -141,7 +141,8 @@ async function processarLoginOAuth(
 }
 
 export async function oauthRoutes(app: FastifyInstance) {
-  const callbackBase = process.env.OAUTH_CALLBACK_URL || 'http://localhost:3000';
+  const callbackBase = app.configuracao.oauthCallbackUrl;
+  const webOAuthSuccessUrl = app.configuracao.webOAuthSuccessUrl;
 
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     await app.register(oauthPlugin, {
@@ -161,12 +162,16 @@ export async function oauthRoutes(app: FastifyInstance) {
     });
 
     app.get('/oauth/google/callback', async (request, reply) => {
-      const googleOAuth2 = (app as any).googleOAuth2;
-      const { token } = await googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request);
-      const perfil = await obterPerfilGoogle(token.access_token);
-      const jwt = await processarLoginOAuth(app, 'google', perfil);
+      try {
+        const googleOAuth2 = (app as any).googleOAuth2;
+        const { token } = await googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request);
+        const perfil = await obterPerfilGoogle(token.access_token);
+        const jwt = await processarLoginOAuth(app, 'google', perfil);
 
-      return reply.send({ data: { token: jwt } });
+        return redirecionarOAuth(reply, webOAuthSuccessUrl, jwt);
+      } catch {
+        return redirecionarErroOAuth(reply, webOAuthSuccessUrl);
+      }
     });
   }
 
@@ -186,12 +191,36 @@ export async function oauthRoutes(app: FastifyInstance) {
     });
 
     app.get('/oauth/github/callback', async (request, reply) => {
-      const githubOAuth2 = (app as any).githubOAuth2;
-      const { token } = await githubOAuth2.getAccessTokenFromAuthorizationCodeFlow(request);
-      const perfil = await obterPerfilGithub(token.access_token);
-      const jwt = await processarLoginOAuth(app, 'github', perfil);
+      try {
+        const githubOAuth2 = (app as any).githubOAuth2;
+        const { token } = await githubOAuth2.getAccessTokenFromAuthorizationCodeFlow(request);
+        const perfil = await obterPerfilGithub(token.access_token);
+        const jwt = await processarLoginOAuth(app, 'github', perfil);
 
-      return reply.send({ data: { token: jwt } });
+        return redirecionarOAuth(reply, webOAuthSuccessUrl, jwt);
+      } catch {
+        return redirecionarErroOAuth(reply, webOAuthSuccessUrl);
+      }
     });
   }
+}
+
+function redirecionarOAuth(reply: { redirect: (url: string) => unknown }, baseUrl: string, token: string) {
+  return reply.redirect(montarUrlOAuthSucesso(baseUrl, token));
+}
+
+function redirecionarErroOAuth(reply: { redirect: (url: string) => unknown }, baseUrl: string) {
+  return reply.redirect(montarUrlOAuthErro(baseUrl));
+}
+
+export function montarUrlOAuthSucesso(baseUrl: string, token: string) {
+  const url = new URL(baseUrl);
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
+export function montarUrlOAuthErro(baseUrl: string) {
+  const url = new URL(baseUrl);
+  url.searchParams.set('oauth_error', '1');
+  return url.toString();
 }

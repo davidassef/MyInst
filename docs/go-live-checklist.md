@@ -1,113 +1,107 @@
 # Go-Live Checklist
 
-Checklist final para colocar o MyInst em produção depois que o repositório
-já estiver validado com `pnpm lint`, `pnpm build` e `pnpm test`.
+Checklist para o primeiro deploy do MyInst em beta privado, saindo de localhost direto para produção.
 
-Antes do go-live, execute também:
+## 1. Preflight local
+
+Execute antes de qualquer deploy:
 
 ```bash
-pnpm release:check
+pnpm validate
+pnpm compose:check
 ```
 
-## 1. Publicação npm
+Para simular produção localmente, use:
 
-- [ ] Criar a organização `@myinst` no npmjs.com
-- [ ] Executar `npm login`
-- [ ] Publicar `@myinst/shared`
-  ```bash
-  cd packages/shared
-  pnpm build
-  npm publish --access public
-  ```
-- [ ] Publicar `@myinst/mcp-server`
-  ```bash
-  cd packages/mcp-server
-  pnpm build
-  npm publish --access public
-  ```
-- [ ] Publicar `@myinst/cli`
-  ```bash
-  cd packages/cli
-  pnpm build
-  npm publish --access public
-  ```
-- [ ] Verificar publicação
-  ```bash
-  npm info @myinst/shared
-  npm info @myinst/mcp-server
-  npm info @myinst/cli
-  npx @myinst/mcp-server --version
-  npx @myinst/cli --help
-  ```
+```bash
+pnpm prod:preflight
+```
 
-## 2. OAuth
+Esse comando sobe Postgres local, aplica schema, sobe API em modo produção e executa smoke test. Ele altera o banco local do compose.
 
-### Google
+## 2. DNS e proxy
 
-- [ ] Criar projeto no Google Cloud Console
-- [ ] Ativar credenciais OAuth 2.0 Web
-- [ ] Configurar redirect URI:
-  - `https://api.seudominio.com/api/v1/auth/oauth/google/callback`
-- [ ] Preencher `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`
+- Use domínio único para web e API.
+- Web: `https://seudominio.com/`
+- API: `https://seudominio.com/api/`
+- O proxy reverso público deve apontar para `127.0.0.1:3011`, pois o Nginx do container web encaminha `/api/` para `myinst-api`.
 
-### GitHub
+## 3. Variáveis de produção
 
-- [ ] Criar OAuth App em GitHub Developer Settings
-- [ ] Configurar callback URL:
-  - `https://api.seudominio.com/api/v1/auth/oauth/github/callback`
-- [ ] Preencher `GITHUB_CLIENT_ID` e `GITHUB_CLIENT_SECRET`
+Na VPS:
 
-## 3. Infra compartilhada
+```bash
+cp deploy/.env.production.example .env
+```
 
-- [ ] Preparar `.env` de produção a partir de [deploy/.env.production.example](/D:/Documentos/Projetos/MyInst/deploy/.env.production.example)
-- [ ] Subir shared-infra
-  ```bash
-  docker compose -f deploy/docker-compose.shared-infra.yml up -d
-  ```
-- [ ] Confirmar containers:
-  - `shared-postgres`
-  - `shared-redis`
-- [ ] Confirmar rede `shared-infra-net`
+Preencha:
 
-## 4. Deploy VPS
+```env
+APP_URL=https://seudominio.com
+API_PUBLIC_URL=https://seudominio.com
+CORS_ORIGIN=https://seudominio.com
+WEB_OAUTH_SUCCESS_URL=https://seudominio.com/login
+OAUTH_CALLBACK_URL=https://seudominio.com
+JWT_SECRET=secret-longo-gerado-com-openssl
+DB_PASSWORD=senha-forte
+POSTGRES_PASSWORD=senha-root-forte
+REDIS_PASSWORD=senha-redis-forte
+```
 
-- [ ] Comprar domínio
-- [ ] Apontar DNS para a VPS
-- [ ] Instalar Docker e Docker Compose Plugin na VPS
-- [ ] Subir aplicação
-  ```bash
-  docker compose -f docker-compose.vps.yml up -d --build
-  ```
-- [ ] Validar healthcheck
-  ```bash
-  curl http://127.0.0.1:3010/health
-  ```
-- [ ] Configurar proxy reverso e TLS
-  - API: `api.seudominio.com -> 127.0.0.1:3010`
-  - Web: `app.seudominio.com -> 127.0.0.1:3011`
-- [ ] Emitir certificados com Certbot
+Gere secrets com:
 
-## 5. Smoke Test
+```bash
+openssl rand -base64 64
+```
 
-- [ ] Abrir a UI web
-- [ ] Registrar usuário novo
-- [ ] Criar API key
-- [ ] Testar login com email/senha
-- [ ] Testar login OAuth Google
-- [ ] Testar login OAuth GitHub
-- [ ] Criar projeto
-- [ ] Criar conteúdo
-- [ ] Editar conteúdo e validar versionamento
-- [ ] Executar `myinst_pull`
-- [ ] Executar `myinst_push`
-- [ ] Executar `myinst_import`
-- [ ] Executar `myinst_search`
-- [ ] Executar `myinst_status`
+## 4. Deploy via Git
 
-## 6. Pós-deploy
+Nunca copie arquivos manualmente para a VPS. Use apenas `git pull`.
 
-- [ ] Criar backup inicial do banco
-- [ ] Validar logs dos containers
-- [ ] Confirmar limites de plano no endpoint `/api/v1/usage`
-- [ ] Confirmar publicação e instalação do MCP package em uma máquina limpa
-- [ ] Confirmar instalação e uso do CLI em uma máquina limpa
+```bash
+cd ~/MyInst
+git pull origin main
+docker compose --env-file .env -f deploy/docker-compose.shared-infra.yml up -d
+MYINST_COMPOSE_FILE=docker-compose.vps.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
+docker compose --env-file .env -f docker-compose.vps.yml up -d --build
+```
+
+## 5. Validação pós-deploy
+
+```bash
+curl https://seudominio.com/health
+MYINST_SMOKE_BASE_URL=https://seudominio.com pnpm smoke
+```
+
+Valide também:
+
+- registro por email/senha;
+- criação de API key;
+- configuração do `myinst-mcp` com API key real;
+- `myinst_pull`;
+- `myinst_push`;
+- `myinst_search`;
+- versionamento no web.
+
+## 6. Backup inicial
+
+Antes de liberar uso real:
+
+```bash
+pnpm db:backup
+```
+
+Restore exige confirmação explícita:
+
+```bash
+MYINST_CONFIRM_RESTORE=CONFIRMO_RESTORE pnpm db:restore backups/arquivo.sql
+```
+
+## 7. OAuth
+
+OAuth é opcional no beta privado. Se configurar:
+
+- Google callback: `https://seudominio.com/api/v1/auth/oauth/google/callback`
+- GitHub callback: `https://seudominio.com/api/v1/auth/oauth/github/callback`
+
+Após o callback, o backend redireciona para `WEB_OAUTH_SUCCESS_URL` com o token.

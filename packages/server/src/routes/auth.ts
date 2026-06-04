@@ -1,6 +1,6 @@
 import { randomBytes, createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { db } from '../db/index.js';
 import { users, apiKeys, plans } from '../db/schema.js';
@@ -11,7 +11,10 @@ import { verificarLimiteApiKeys } from '../middleware/usage.js';
 import { obterWorkspaceDefault } from '../lib/workspaces.js';
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post('/register', { preHandler: [validar(registrarUsuarioSchema)] }, async (request, reply) => {
+  app.post('/register', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    preHandler: [validar(registrarUsuarioSchema)],
+  }, async (request, reply) => {
     const { email, password, displayName } = request.body as { email: string; password: string; displayName: string };
 
     const [existente] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
@@ -50,7 +53,10 @@ export async function authRoutes(app: FastifyInstance) {
     });
   });
 
-  app.post('/login', { preHandler: [validar(loginSchema)] }, async (request, reply) => {
+  app.post('/login', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    preHandler: [validar(loginSchema)],
+  }, async (request, reply) => {
     const { email, password } = request.body as { email: string; password: string };
 
     const [usuario] = await db.select().from(users).where(eq(users.email, email)).limit(1);
@@ -98,7 +104,10 @@ export async function authRoutes(app: FastifyInstance) {
     return { data: usuario };
   });
 
-  app.post('/api-keys', { preHandler: [autenticar, validar(criarApiKeySchema), verificarLimiteApiKeys] }, async (request, reply) => {
+  app.post('/api-keys', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+    preHandler: [autenticar, validar(criarApiKeySchema), verificarLimiteApiKeys],
+  }, async (request, reply) => {
     const { name, scopes, expiresAt } = request.body as { name: string; scopes: string[]; expiresAt?: string };
 
     const rawKey = `${API_KEY_PREFIX}${randomBytes(24).toString('base64url')}`;
@@ -149,7 +158,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const [deleted] = await db
       .delete(apiKeys)
-      .where(eq(apiKeys.id, id))
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, request.user.id)))
       .returning({ id: apiKeys.id });
 
     if (!deleted) {
