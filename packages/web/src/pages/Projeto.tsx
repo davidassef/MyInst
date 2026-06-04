@@ -45,7 +45,7 @@ interface ConteudoItem {
 }
 
 export function ProjetoPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { workspaceSlug, slug } = useParams<{ workspaceSlug: string; slug: string }>();
   const [conteudos, setConteudos] = useState<ConteudoItem[]>([]);
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroTexto, setFiltroTexto] = useState('');
@@ -72,14 +72,14 @@ export function ProjetoPage() {
   const [novaPastaNome, setNovaPastaNome] = useState('');
 
   useEffect(() => {
-    if (!slug) return;
-    api.conteudo.listar(slug, filtroTipo ? { type: filtroTipo } : undefined).then(setConteudos);
-  }, [slug, filtroTipo]);
+    if (!workspaceSlug || !slug) return;
+    api.conteudo.listar(workspaceSlug, slug, filtroTipo ? { type: filtroTipo } : undefined).then(setConteudos);
+  }, [workspaceSlug, slug, filtroTipo]);
 
   useEffect(() => {
-    if (!slug) return;
-    api.pastas.listar(slug).then(setPastas);
-  }, [slug]);
+    if (!workspaceSlug || !slug) return;
+    api.pastas.listar(workspaceSlug, slug).then(setPastas);
+  }, [workspaceSlug, slug]);
 
   useEffect(() => {
     if (!itemSelecionado) return;
@@ -99,13 +99,13 @@ export function ProjetoPage() {
     .filter((c) => !filtroTexto || c.title.toLowerCase().includes(filtroTexto.toLowerCase()));
 
   async function salvarEdicao() {
-    if (!slug || !itemSelecionado) return;
+    if (!workspaceSlug || !slug || !itemSelecionado) return;
     setSalvando(true);
     setSalvoComSucesso(false);
     setErroSalvar('');
 
     try {
-      const atualizado = await api.conteudo.atualizar(slug, itemSelecionado.slug, {
+      const atualizado = await api.conteudo.atualizar(workspaceSlug, slug, itemSelecionado.slug, {
         title: tituloEditado,
         body: bodyEditado,
         tags: tagsEditadas ? tagsEditadas.split(',').map((t) => t.trim()) : [],
@@ -124,29 +124,29 @@ export function ProjetoPage() {
 
   async function criarPasta(e: React.FormEvent) {
     e.preventDefault();
-    if (!slug || !novaPastaNome.trim()) return;
+    if (!workspaceSlug || !slug || !novaPastaNome.trim()) return;
 
     const pastaSlug = novaPastaNome.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const novaPasta = await api.pastas.criar(slug, { name: novaPastaNome, slug: pastaSlug });
+    const novaPasta = await api.pastas.criar(workspaceSlug, slug, { name: novaPastaNome, slug: pastaSlug });
     setPastas([...pastas, novaPasta]);
     setNovaPastaNome('');
     setMostrarFormPasta(false);
   }
 
   async function deletarPasta(pastaId: string) {
-    if (!slug) return;
+    if (!workspaceSlug || !slug) return;
     if (!window.confirm('Tem certeza que deseja deletar esta pasta?')) return;
 
-    await api.pastas.deletar(slug, pastaId);
+    await api.pastas.deletar(workspaceSlug, slug, pastaId);
     setPastas(pastas.filter((p) => p.id !== pastaId));
     if (pastaSelecionada === pastaId) setPastaSelecionada(null);
   }
 
   async function criarConteudo(e: React.FormEvent) {
     e.preventDefault();
-    if (!slug) return;
+    if (!workspaceSlug || !slug) return;
 
-    const novo = await api.conteudo.criar(slug, {
+    const novo = await api.conteudo.criar(workspaceSlug, slug, {
       type: novoTipo,
       title: novoTitulo,
       slug: novoSlug,
@@ -167,8 +167,8 @@ export function ProjetoPage() {
   }
 
   async function deletarConteudo(contentSlug: string) {
-    if (!slug) return;
-    await api.conteudo.deletar(slug, contentSlug);
+    if (!workspaceSlug || !slug) return;
+    await api.conteudo.deletar(workspaceSlug, slug, contentSlug);
     setConteudos(conteudos.filter((c) => c.slug !== contentSlug));
     if (itemSelecionado?.slug === contentSlug) setItemSelecionado(null);
   }
@@ -176,7 +176,7 @@ export function ProjetoPage() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <Link to="/" className="text-zinc-400 hover:text-zinc-200">
+        <Link to={`/workspaces/${workspaceSlug}`} className="text-zinc-400 hover:text-zinc-200">
           <ArrowLeft size={20} />
         </Link>
         <h2 className="text-2xl font-bold text-zinc-100">{slug}</h2>

@@ -58,7 +58,10 @@ function detectarTipo(caminhoRelativo: string): string | null {
 }
 
 function slugDoArquivo(nomeArquivo: string): string {
-  return basename(nomeArquivo, extname(nomeArquivo));
+  return basename(nomeArquivo, extname(nomeArquivo))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function tituloDoSlug(slug: string): string {
@@ -79,7 +82,10 @@ async function listarArquivosRecursivo(diretorio: string): Promise<string[]> {
   }
 
   for (const entrada of entradas) {
-    arquivos.push(join(diretorio, entrada));
+    const caminhoAbsoluto = join(diretorio, entrada);
+    if (deveIgnorarCaminho(caminhoAbsoluto)) continue;
+
+    arquivos.push(caminhoAbsoluto);
   }
 
   return arquivos;
@@ -169,3 +175,20 @@ export function detectarNomeRepositorio(diretorio: string): string {
 
   return pastaPai.toLowerCase().replace(/[^a-z0-9-]/g, '-');
 }
+
+function deveIgnorarCaminho(caminhoAbsoluto: string): boolean {
+  const caminhoNormalizado = caminhoAbsoluto.replace(/\\/g, '/');
+  const segmentos = caminhoNormalizado.split('/');
+
+  return segmentos.some((segmento) => DIRETORIOS_IGNORADOS.has(segmento));
+}
+
+const DIRETORIOS_IGNORADOS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  '.next',
+  '.turbo',
+  'coverage',
+]);

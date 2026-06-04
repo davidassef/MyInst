@@ -14,6 +14,18 @@ npm install -g @myinst/mcp-server
 MYINST_API_KEY=myinst_xxx MYINST_SERVER=https://api.seudominio.com myinst-mcp
 ```
 
+## Fluxo padrao
+
+O fluxo recomendado e local-first:
+
+1. Use `myinst_pull` para materializar o vault no projeto local.
+2. Trabalhe sobre os arquivos em `.claude/`.
+3. Use `myinst_push` depois de criar, editar ou reescrever skills e instrucoes.
+
+`myinst_pull` tambem cria ou atualiza `.claude/MYINST.md`, um guia operacional para o agente entender como usar o MyInst sem depender de consultas repetidas.
+
+Use `myinst_search` apenas para descoberta pontual quando ainda nao souber qual conteudo materializar.
+
 ## Ajuda
 
 ```bash

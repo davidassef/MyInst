@@ -29,6 +29,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+
+    if (response.status === 401 && token) {
+      limparToken();
+
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+
     throw new Error(error.error?.message || response.statusText);
   }
 
@@ -50,33 +59,48 @@ export const api = {
     deletarApiKey: (id: string) =>
       request<void>(`/auth/api-keys/${id}`, { method: 'DELETE' }),
   },
-  projetos: {
-    listar: () => request<any[]>('/projects'),
+  workspaces: {
+    listar: () => request<any[]>('/workspaces'),
     criar: (body: { name: string; slug: string; description?: string }) =>
-      request<any>('/projects', { method: 'POST', body: JSON.stringify(body) }),
-    obter: (slug: string) => request<any>(`/projects/${slug}`),
-    deletar: (slug: string) => request<void>(`/projects/${slug}`, { method: 'DELETE' }),
+      request<any>('/workspaces', { method: 'POST', body: JSON.stringify(body) }),
+    obter: (workspaceSlug: string) => request<any>(`/workspaces/${workspaceSlug}`),
+    atualizar: (workspaceSlug: string, body: { name?: string; slug?: string; description?: string }) =>
+      request<any>(`/workspaces/${workspaceSlug}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    deletar: (workspaceSlug: string) =>
+      request<void>(`/workspaces/${workspaceSlug}`, { method: 'DELETE' }),
+  },
+  projetos: {
+    listar: (workspaceSlug?: string) =>
+      workspaceSlug
+        ? request<any[]>(`/workspaces/${workspaceSlug}/projects`)
+        : request<any[]>('/projects'),
+    criar: (workspaceSlug: string, body: { name: string; slug: string; description?: string }) =>
+      request<any>(`/workspaces/${workspaceSlug}/projects`, { method: 'POST', body: JSON.stringify(body) }),
+    obter: (workspaceSlug: string, projectSlug: string) =>
+      request<any>(`/workspaces/${workspaceSlug}/projects/${projectSlug}`),
+    deletar: (workspaceSlug: string, projectSlug: string) =>
+      request<void>(`/workspaces/${workspaceSlug}/projects/${projectSlug}`, { method: 'DELETE' }),
   },
   conteudo: {
-    listar: (projetoSlug: string, params?: { type?: string }) => {
+    listar: (workspaceSlug: string, projetoSlug: string, params?: { type?: string }) => {
       const query = params?.type ? `?type=${params.type}` : '';
-      return request<any[]>(`/projects/${projetoSlug}/content${query}`);
+      return request<any[]>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/content${query}`);
     },
-    criar: (projetoSlug: string, body: any) =>
-      request<any>(`/projects/${projetoSlug}/content`, { method: 'POST', body: JSON.stringify(body) }),
-    obter: (projetoSlug: string, contentSlug: string) =>
-      request<any>(`/projects/${projetoSlug}/content/${contentSlug}`),
-    atualizar: (projetoSlug: string, contentSlug: string, body: any) =>
-      request<any>(`/projects/${projetoSlug}/content/${contentSlug}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    deletar: (projetoSlug: string, contentSlug: string) =>
-      request<void>(`/projects/${projetoSlug}/content/${contentSlug}`, { method: 'DELETE' }),
-    diff: (projetoSlug: string, contentSlug: string, v1: number, v2?: number) => {
+    criar: (workspaceSlug: string, projetoSlug: string, body: any) =>
+      request<any>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/content`, { method: 'POST', body: JSON.stringify(body) }),
+    obter: (workspaceSlug: string, projetoSlug: string, contentSlug: string) =>
+      request<any>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/content/${contentSlug}`),
+    atualizar: (workspaceSlug: string, projetoSlug: string, contentSlug: string, body: any) =>
+      request<any>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/content/${contentSlug}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    deletar: (workspaceSlug: string, projetoSlug: string, contentSlug: string) =>
+      request<void>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/content/${contentSlug}`, { method: 'DELETE' }),
+    diff: (workspaceSlug: string, projetoSlug: string, contentSlug: string, v1: number, v2?: number) => {
       const params = new URLSearchParams({ v1: String(v1) });
       if (v2) params.set('v2', String(v2));
-      return request<any>(`/projects/${projetoSlug}/content/${contentSlug}/diff?${params}`);
+      return request<any>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/content/${contentSlug}/diff?${params}`);
     },
-    restaurar: (projetoSlug: string, contentSlug: string, version: number) =>
-      request<any>(`/projects/${projetoSlug}/content/${contentSlug}/restore`, { method: 'POST', body: JSON.stringify({ version }) }),
+    restaurar: (workspaceSlug: string, projetoSlug: string, contentSlug: string, version: number) =>
+      request<any>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/content/${contentSlug}/restore`, { method: 'POST', body: JSON.stringify({ version }) }),
   },
   tags: {
     listar: () => request<any[]>('/tags'),
@@ -85,16 +109,17 @@ export const api = {
     deletar: (id: string) => request<void>(`/tags/${id}`, { method: 'DELETE' }),
   },
   pastas: {
-    listar: (projetoSlug: string) =>
-      request<any[]>(`/projects/${projetoSlug}/folders`),
-    criar: (projetoSlug: string, body: { name: string; slug: string; sortOrder?: number }) =>
-      request<any>(`/projects/${projetoSlug}/folders`, { method: 'POST', body: JSON.stringify(body) }),
-    deletar: (projetoSlug: string, folderId: string) =>
-      request<void>(`/projects/${projetoSlug}/folders/${folderId}`, { method: 'DELETE' }),
+    listar: (workspaceSlug: string, projetoSlug: string) =>
+      request<any[]>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/folders`),
+    criar: (workspaceSlug: string, projetoSlug: string, body: { name: string; slug: string; sortOrder?: number }) =>
+      request<any>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/folders`, { method: 'POST', body: JSON.stringify(body) }),
+    deletar: (workspaceSlug: string, projetoSlug: string, folderId: string) =>
+      request<void>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/folders/${folderId}`, { method: 'DELETE' }),
   },
   busca: {
-    pesquisar: (params: { q: string; project?: string; type?: string }) => {
+    pesquisar: (params: { q: string; workspace?: string; project?: string; type?: string }) => {
       const searchParams = new URLSearchParams({ q: params.q });
+      if (params.workspace) searchParams.set('workspace', params.workspace);
       if (params.project) searchParams.set('project', params.project);
       if (params.type) searchParams.set('type', params.type);
       return request<any[]>(`/search?${searchParams.toString()}`);

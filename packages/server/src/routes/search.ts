@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { autenticar } from '../middleware/auth.js';
+import { obterWorkspaceDefault, resolverWorkspaceDoUsuario } from '../lib/workspaces.js';
 
 export async function searchRoutes(app: FastifyInstance) {
   app.addHook('preHandler', autenticar);
@@ -9,6 +10,7 @@ export async function searchRoutes(app: FastifyInstance) {
   app.get('/search', async (request, reply) => {
     const { q, project, type } = request.query as {
       q?: string;
+      workspace?: string;
       project?: string;
       type?: string;
     };
@@ -21,9 +23,21 @@ export async function searchRoutes(app: FastifyInstance) {
 
     const userId = request.user.id;
     const termo = q.trim();
+    const workspace = q
+      ? (request.query as { workspace?: string }).workspace
+        ? await resolverWorkspaceDoUsuario(userId, (request.query as { workspace?: string }).workspace)
+        : await obterWorkspaceDefault(userId)
+      : null;
+
+    if (!workspace) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Workspace não encontrado', status: 404 },
+      });
+    }
 
     const condicoes = [
       sql`ci.user_id = ${userId}`,
+      sql`p.workspace_id = ${workspace.id}`,
       sql`to_tsvector('portuguese', coalesce(ci.title, '') || ' ' || coalesce(ci.body, '') || ' ' || coalesce(ci.description, '')) @@ plainto_tsquery('portuguese', ${termo})`,
     ];
 

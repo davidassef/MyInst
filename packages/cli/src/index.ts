@@ -22,16 +22,19 @@ programa
 programa
   .command('pull [projeto]')
   .description('Baixar conteudo do vault para o diretorio atual')
-  .action((projeto: string = 'default') => executarPull(projeto));
+  .option('-w, --workspace <slug>', 'Slug do workspace')
+  .action((projeto: string = 'default', options: { workspace?: string }) => executarPull(projeto, options.workspace));
 
 programa
   .command('push [projeto]')
   .description('Enviar conteudo local (.claude/) para o vault')
-  .action((projeto: string = 'default') => executarPush(projeto));
+  .option('-w, --workspace <slug>', 'Slug do workspace')
+  .action((projeto: string = 'default', options: { workspace?: string }) => executarPush(projeto, options.workspace));
 
 programa
   .command('list [projeto]')
   .description('Listar conteudo de um projeto no vault')
-  .action((projeto: string = 'default') => executarList(projeto));
+  .option('-w, --workspace <slug>', 'Slug do workspace')
+  .action((projeto: string = 'default', options: { workspace?: string }) => executarList(projeto, options.workspace));
 
 programa.parse();

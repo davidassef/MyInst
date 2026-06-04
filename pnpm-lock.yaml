@@ -40,8 +40,8 @@ importers:
         specifier: ^1.12.0
         version: 1.29.0(zod@3.25.76)
       '@myinst/shared':
-        specifier: workspace:*
-        version: link:../shared
+        specifier: 0.1.0-beta.1
+        version: 0.1.0-beta.1
       zod:
         specifier: ^3.24.0
         version: 3.25.76
@@ -964,6 +964,9 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@myinst/shared@0.1.0-beta.1':
+    resolution: {integrity: sha512-3dzrwkJ+c45oIm7FXnEqxuLt6vXRtGQvRuv4N3eq8Ok3ahawCYDACPtYHi99vapsb7x8t5fKMfCWtcwWUERv4A==}
 
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
@@ -3085,6 +3088,10 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@3.25.76)
     transitivePeerDependencies:
       - supports-color
+
+  '@myinst/shared@0.1.0-beta.1':
+    dependencies:
+      zod: 3.25.76
 
   '@noble/hashes@1.8.0': {}
 

@@ -17,7 +17,7 @@ interface ConteudoItem {
   tags: string[];
 }
 
-export async function executarList(projeto: string): Promise<void> {
+export async function executarList(projeto: string, workspace?: string): Promise<void> {
   const config = carregarConfig();
 
   if (!config) {
@@ -28,7 +28,11 @@ export async function executarList(projeto: string): Promise<void> {
   console.log(`${CINZA}Listando conteudo do projeto "${projeto}"...${RESET}\n`);
 
   try {
-    const resposta = await fetch(`${config.server}/api/v1/projects/${encodeURIComponent(projeto)}/content`, {
+    const url = workspace
+      ? `${config.server}/api/v1/workspaces/${encodeURIComponent(workspace)}/projects/${encodeURIComponent(projeto)}/content`
+      : `${config.server}/api/v1/projects/${encodeURIComponent(projeto)}/content`;
+
+    const resposta = await fetch(url, {
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
       },

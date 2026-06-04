@@ -1,0 +1,11 @@
+node_modules
+packages/*/node_modules
+packages/*/dist
+packages/*/.turbo
+packages/web/.vite
+.git
+.github
+.turbo
+.playwright-mcp
+coverage
+*.log

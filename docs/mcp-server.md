@@ -43,6 +43,17 @@ Adicione nas configurações do MCP da extensão com os mesmos parâmetros.
 
 ## Tools Disponíveis
 
+## Fluxo padrão
+
+O uso recomendado do MyInst MCP é local-first:
+
+1. Use `myinst_pull` no início do trabalho para materializar o vault no projeto local.
+2. Trabalhe sobre os arquivos em `.claude/`.
+3. Use `myinst_push` sempre que criar, editar, reescrever ou reorganizar skills, instructions, agents, hooks, memory ou snippets.
+4. Use `myinst_search` apenas para descoberta pontual, quando ainda não souber qual conteúdo materializar.
+
+Todo `myinst_pull` cria ou atualiza `.claude/MYINST.md`, um guia operacional para o agente entender esse fluxo.
+
 ### myinst_list_projects
 
 Lista todos os projetos do vault.
@@ -56,7 +67,7 @@ Lista todos os projetos do vault.
 
 ### myinst_pull
 
-Puxa configurações do vault e aplica ao diretório do projeto local.
+Materializa configurações do vault no diretório do projeto local e instala `.claude/MYINST.md`.
 
 **Parâmetros:**
 
@@ -67,6 +78,7 @@ Puxa configurações do vault e aplica ao diretório do projeto local.
 | `tags` | string[]? | Filtrar por tags de modelo/provider |
 | `dryRun` | boolean? | Apenas mostra o que seria aplicado |
 | `targetDir` | string? | Diretório alvo (padrão: diretório atual) |
+| `conflictStrategy` | string? | `overwrite`, `prefix` ou `skip` para conflitos locais |
 
 **Exemplo de uso:**
 ```
@@ -84,10 +96,11 @@ Puxa configurações do vault e aplica ao diretório do projeto local.
 | hook | `.claude/hook-{slug}.md` |
 | memory | `.claude/memory/{slug}.md` |
 | snippet | `.claude/snippets/{slug}.md` |
+| guia MyInst | `.claude/MYINST.md` |
 
 ### myinst_search
 
-Busca conteúdo no vault por texto usando a busca full-text do servidor.
+Busca conteúdo no vault por texto usando a busca full-text do servidor. Use para descoberta pontual; para trabalho recorrente, materialize com `myinst_pull`.
 
 **Parâmetros:**
 
@@ -113,8 +126,9 @@ Verifica o que mudou no vault desde o último sync.
 1. Registre-se no servidor MyInst
 2. Gere uma API key
 3. Configure o MCP server no seu cliente
-4. Use `myinst_pull` para aplicar suas configs ao projeto
-5. Trabalhe normalmente — suas instruções estarão ativas
+4. Use `myinst_pull` para materializar suas configs no projeto
+5. Trabalhe normalmente com os arquivos locais em `.claude/`
+6. Use `myinst_push` quando alterar ou criar conteúdo sincronizável
 
 ## Dry Run
 

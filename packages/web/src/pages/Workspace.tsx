@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Boxes, Plus } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, FolderOpen, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 
-interface Workspace {
+interface Projeto {
   id: string;
   name: string;
   slug: string;
@@ -11,21 +11,25 @@ interface Workspace {
   isDefault: boolean;
 }
 
-export function DashboardPage() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+export function WorkspacePage() {
+  const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
+  const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [nome, setNome] = useState('');
   const [slug, setSlug] = useState('');
   const [descricao, setDescricao] = useState('');
 
   useEffect(() => {
-    api.workspaces.listar().then(setWorkspaces);
-  }, []);
+    if (!workspaceSlug) return;
+    api.projetos.listar(workspaceSlug).then(setProjetos);
+  }, [workspaceSlug]);
 
-  async function criarWorkspace(e: React.FormEvent) {
+  async function criarProjeto(e: React.FormEvent) {
     e.preventDefault();
-    const novo = await api.workspaces.criar({ name: nome, slug, description: descricao || undefined });
-    setWorkspaces([...workspaces, novo]);
+    if (!workspaceSlug) return;
+
+    const novo = await api.projetos.criar(workspaceSlug, { name: nome, slug, description: descricao || undefined });
+    setProjetos([...projetos, novo]);
     setMostrarForm(false);
     setNome('');
     setSlug('');
@@ -34,19 +38,26 @@ export function DashboardPage() {
 
   return (
     <div>
+      <div className="flex items-center gap-3 mb-6">
+        <Link to="/" className="text-zinc-400 hover:text-zinc-200">
+          <ArrowLeft size={20} />
+        </Link>
+        <h2 className="text-2xl font-bold text-zinc-100">{workspaceSlug}</h2>
+      </div>
+
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-zinc-100">Workspaces</h2>
+        <h3 className="text-lg font-semibold text-zinc-200">Projetos</h3>
         <button
           onClick={() => setMostrarForm(!mostrarForm)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
         >
           <Plus size={16} />
-          Novo Workspace
+          Novo Projeto
         </button>
       </div>
 
       {mostrarForm && (
-        <form onSubmit={criarWorkspace} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6 space-y-3">
+        <form onSubmit={criarProjeto} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm text-zinc-400 mb-1">Nome</label>
@@ -85,22 +96,22 @@ export function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {workspaces.map((workspace) => (
+        {projetos.map((projeto) => (
           <Link
-            key={workspace.id}
-            to={`/workspaces/${workspace.slug}`}
+            key={projeto.id}
+            to={`/workspaces/${workspaceSlug}/projetos/${projeto.slug}`}
             className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-600 transition-colors group"
           >
             <div className="flex items-start gap-3">
-              <Boxes size={20} className="text-blue-400 mt-0.5" />
+              <FolderOpen size={20} className="text-blue-400 mt-0.5" />
               <div>
                 <h3 className="font-semibold text-zinc-100 group-hover:text-blue-400 transition-colors">
-                  {workspace.name}
+                  {projeto.name}
                 </h3>
-                {workspace.description && (
-                  <p className="text-sm text-zinc-500 mt-1">{workspace.description}</p>
+                {projeto.description && (
+                  <p className="text-sm text-zinc-500 mt-1">{projeto.description}</p>
                 )}
-                {workspace.isDefault && (
+                {projeto.isDefault && (
                   <span className="inline-block mt-2 text-xs px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded">
                     padrão
                   </span>

@@ -92,7 +92,7 @@ async function lerConteudoLocal(diretorioBase: string): Promise<ItemParaPush[]> 
   return itens;
 }
 
-export async function executarPush(projeto: string): Promise<void> {
+export async function executarPush(projeto: string, workspace?: string): Promise<void> {
   const config = carregarConfig();
 
   if (!config) {
@@ -117,7 +117,7 @@ export async function executarPush(projeto: string): Promise<void> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify({ project: projeto, items: itens }),
+      body: JSON.stringify({ workspace, project: projeto, items: itens }),
     });
 
     if (!resposta.ok) {

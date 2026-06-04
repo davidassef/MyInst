@@ -3,6 +3,8 @@ dist/
 .env
 *.log
 .turbo/
+.playwright-mcp/
+.pnpm-store/
 drizzle/
 coverage/
 .DS_Store

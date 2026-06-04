@@ -9,7 +9,7 @@ const RESET = '\x1b[0m';
 
 async function validarServidor(server: string, apiKey: string): Promise<boolean> {
   try {
-    const resposta = await fetch(`${server}/api/v1/projects`, {
+    const resposta = await fetch(`${server}/api/v1/workspaces`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     return resposta.ok;

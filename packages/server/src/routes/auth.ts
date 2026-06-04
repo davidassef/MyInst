@@ -3,11 +3,12 @@ import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { db } from '../db/index.js';
-import { users, apiKeys, projects, plans } from '../db/schema.js';
+import { users, apiKeys, plans } from '../db/schema.js';
 import { registrarUsuarioSchema, loginSchema, criarApiKeySchema, API_KEY_PREFIX } from '@myinst/shared';
 import { autenticar } from '../middleware/auth.js';
 import { validar } from '../middleware/validation.js';
 import { verificarLimiteApiKeys } from '../middleware/usage.js';
+import { obterWorkspaceDefault } from '../lib/workspaces.js';
 
 export async function authRoutes(app: FastifyInstance) {
   app.post('/register', { preHandler: [validar(registrarUsuarioSchema)] }, async (request, reply) => {
@@ -34,13 +35,7 @@ export async function authRoutes(app: FastifyInstance) {
       planId: planoFree?.id ?? null,
     }).returning();
 
-    await db.insert(projects).values({
-      userId: usuario.id,
-      name: 'Default',
-      slug: 'default',
-      description: 'Projeto padrão',
-      isDefault: true,
-    });
+    await obterWorkspaceDefault(usuario.id);
 
     const token = app.jwt.sign(
       { id: usuario.id, email: usuario.email, displayName: usuario.displayName },
@@ -71,6 +66,8 @@ export async function authRoutes(app: FastifyInstance) {
         error: { code: 'INVALID_CREDENTIALS', message: 'Email ou senha inválidos', status: 401 },
       });
     }
+
+    await obterWorkspaceDefault(usuario.id);
 
     const token = app.jwt.sign(
       { id: usuario.id, email: usuario.email, displayName: usuario.displayName },

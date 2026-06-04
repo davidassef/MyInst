@@ -68,7 +68,7 @@ export const apiKeys = pgTable('api_keys', {
   index('api_keys_prefix_idx').on(table.keyPrefix),
 ]);
 
-export const projects = pgTable('projects', {
+export const workspaces = pgTable('workspaces', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }).notNull(),
@@ -78,7 +78,23 @@ export const projects = pgTable('projects', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  uniqueIndex('projects_user_slug_idx').on(table.userId, table.slug),
+  uniqueIndex('workspaces_user_slug_idx').on(table.userId, table.slug),
+  index('workspaces_user_idx').on(table.userId),
+]);
+
+export const projects = pgTable('projects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  slug: varchar('slug', { length: 100 }).notNull(),
+  description: text('description'),
+  isDefault: boolean('is_default').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('projects_workspace_slug_idx').on(table.workspaceId, table.slug),
+  index('projects_workspace_idx').on(table.workspaceId),
 ]);
 
 export const folders = pgTable('folders', {
@@ -120,11 +136,13 @@ export const contentItems = pgTable('content_items', {
 export const tags = pgTable('tags', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 50 }).notNull(),
   category: tagCategoryEnum('category').notNull(),
   color: varchar('color', { length: 7 }),
 }, (table) => [
-  uniqueIndex('tags_user_name_idx').on(table.userId, table.name),
+  uniqueIndex('tags_workspace_name_idx').on(table.workspaceId, table.name),
+  index('tags_workspace_idx').on(table.workspaceId),
 ]);
 
 export const contentTags = pgTable('content_tags', {
@@ -148,12 +166,14 @@ export const contentVersions = pgTable('content_versions', {
 export const modelProfiles = pgTable('model_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }).notNull(),
   modelPattern: varchar('model_pattern', { length: 200 }).notNull(),
   tags: text('tags').array().default([]).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  uniqueIndex('model_profiles_user_name_idx').on(table.userId, table.name),
+  uniqueIndex('model_profiles_workspace_name_idx').on(table.workspaceId, table.name),
+  index('model_profiles_workspace_idx').on(table.workspaceId),
 ]);
 
 export const auditLog = pgTable('audit_log', {

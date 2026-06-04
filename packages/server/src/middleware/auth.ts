@@ -80,7 +80,23 @@ export async function autenticarJwt(request: FastifyRequest, reply: FastifyReply
   try {
     await request.jwtVerify();
     const payload = request.user as { id: string; email: string; displayName: string };
-    request.user = payload;
+    const [usuario] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+      })
+      .from(users)
+      .where(eq(users.id, payload.id))
+      .limit(1);
+
+    if (!usuario) {
+      return reply.status(401).send({
+        error: { code: 'UNAUTHORIZED', message: 'Sessão inválida. Faça login novamente.', status: 401 },
+      });
+    }
+
+    request.user = usuario;
   } catch {
     return reply.status(401).send({
       error: { code: 'UNAUTHORIZED', message: 'Token inválido ou expirado', status: 401 },

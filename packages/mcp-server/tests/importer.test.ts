@@ -164,7 +164,7 @@ describe('Importer', () => {
 
   it('detecta CLAUDE.md como instruction', async () => {
     const itens = await importarDiretorio(tempDir);
-    const claude = itens.find((i) => i.slug === 'CLAUDE');
+    const claude = itens.find((i) => i.slug === 'claude');
 
     expect(claude).toBeDefined();
     expect(claude!.type).toBe('instruction');
@@ -172,7 +172,7 @@ describe('Importer', () => {
 
   it('detecta .rules.md como instruction', async () => {
     const itens = await importarDiretorio(tempDir);
-    const rules = itens.find((i) => i.slug === 'custom.rules');
+    const rules = itens.find((i) => i.slug === 'custom-rules');
 
     expect(rules).toBeDefined();
     expect(rules!.type).toBe('instruction');

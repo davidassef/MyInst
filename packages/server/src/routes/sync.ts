@@ -1,27 +1,47 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, and, inArray, gte } from 'drizzle-orm';
+import { and, eq, gte, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { contentItems, contentTags, contentVersions, folders, projects, tags } from '../db/schema.js';
 import { syncPullSchema, syncPushSchema } from '@myinst/shared';
 import type { ContentType } from '@myinst/shared';
 import { autenticar } from '../middleware/auth.js';
 import { validar } from '../middleware/validation.js';
+import { obterWorkspaceDefault, resolverWorkspaceDoUsuario } from '../lib/workspaces.js';
 
 export async function syncRoutes(app: FastifyInstance) {
   app.addHook('preHandler', autenticar);
 
-  app.post('/pull', { preHandler: [validar(syncPullSchema)] }, async (request, reply) => {
-    const { project, types, tags: tagFilter, since } = request.body as {
-      project: string; types?: string[]; tags?: string[]; since?: string;
-    };
+  async function resolverProjeto(userId: string, projectSlug: string, workspaceSlug?: string) {
+    const workspace = workspaceSlug
+      ? await resolverWorkspaceDoUsuario(userId, workspaceSlug)
+      : await obterWorkspaceDefault(userId);
+
+    if (!workspace) return null;
 
     const [projeto] = await db
-      .select({ id: projects.id })
+      .select({ id: projects.id, workspaceId: projects.workspaceId })
       .from(projects)
-      .where(and(eq(projects.userId, request.user.id), eq(projects.slug, project)))
+      .where(and(
+        eq(projects.userId, userId),
+        eq(projects.workspaceId, workspace.id),
+        eq(projects.slug, projectSlug),
+      ))
       .limit(1);
 
-    if (!projeto) {
+    return projeto ? { workspace, projeto } : null;
+  }
+
+  app.post('/pull', { preHandler: [validar(syncPullSchema)] }, async (request, reply) => {
+    const { workspace, project, types, tags: tagFilter, since } = request.body as {
+      workspace?: string;
+      project: string;
+      types?: string[];
+      tags?: string[];
+      since?: string;
+    };
+
+    const contexto = await resolverProjeto(request.user.id, project, workspace);
+    if (!contexto) {
       return reply.status(404).send({
         error: { code: 'NOT_FOUND', message: `Projeto '${project}' não encontrado`, status: 404 },
       });
@@ -31,7 +51,7 @@ export async function syncRoutes(app: FastifyInstance) {
       .select()
       .from(contentItems)
       .where(and(
-        eq(contentItems.projectId, projeto.id),
+        eq(contentItems.projectId, contexto.projeto.id),
         eq(contentItems.isActive, true),
         ...(since ? [gte(contentItems.updatedAt, new Date(since))] : []),
       ));
@@ -41,12 +61,12 @@ export async function syncRoutes(app: FastifyInstance) {
     }
 
     if (tagFilter && tagFilter.length > 0) {
-      const tagsDoUsuario = await db
-        .select({ id: tags.id, name: tags.name })
+      const tagsDoWorkspace = await db
+        .select({ id: tags.id })
         .from(tags)
-        .where(and(eq(tags.userId, request.user.id), inArray(tags.name, tagFilter)));
+        .where(and(eq(tags.userId, request.user.id), eq(tags.workspaceId, contexto.workspace.id), inArray(tags.name, tagFilter)));
 
-      const tagIds = tagsDoUsuario.map((t) => t.id);
+      const tagIds = tagsDoWorkspace.map((tag) => tag.id);
 
       if (tagIds.length > 0) {
         const conteudosComTag = await db
@@ -54,7 +74,7 @@ export async function syncRoutes(app: FastifyInstance) {
           .from(contentTags)
           .where(inArray(contentTags.tagId, tagIds));
 
-        const idsSet = new Set(conteudosComTag.map((r) => r.contentId));
+        const idsSet = new Set(conteudosComTag.map((item) => item.contentId));
         items = items.filter((item) => idsSet.has(item.id));
       } else {
         items = [];
@@ -69,7 +89,7 @@ export async function syncRoutes(app: FastifyInstance) {
           .innerJoin(tags, eq(tags.id, contentTags.tagId))
           .where(eq(contentTags.contentId, item.id));
 
-        return { ...item, tags: itemTags.map((t) => t.name) };
+        return { ...item, tags: itemTags.map((tag) => tag.name) };
       }),
     );
 
@@ -85,19 +105,15 @@ export async function syncRoutes(app: FastifyInstance) {
   });
 
   app.post('/push', { preHandler: [validar(syncPushSchema)] }, async (request, reply) => {
-    const { project, items, folderSlug } = request.body as {
+    const { workspace, project, items, folderSlug } = request.body as {
+      workspace?: string;
       project: string;
       folderSlug?: string;
       items: { type: ContentType; title: string; slug: string; body: string; metadata: Record<string, unknown>; tags: string[] }[];
     };
 
-    const [projeto] = await db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.userId, request.user.id), eq(projects.slug, project)))
-      .limit(1);
-
-    if (!projeto) {
+    const contexto = await resolverProjeto(request.user.id, project, workspace);
+    if (!contexto) {
       return reply.status(404).send({
         error: { code: 'NOT_FOUND', message: `Projeto '${project}' não encontrado`, status: 404 },
       });
@@ -108,7 +124,7 @@ export async function syncRoutes(app: FastifyInstance) {
       const [pasta] = await db
         .select({ id: folders.id })
         .from(folders)
-        .where(and(eq(folders.projectId, projeto.id), eq(folders.slug, folderSlug)))
+        .where(and(eq(folders.projectId, contexto.projeto.id), eq(folders.slug, folderSlug)))
         .limit(1);
 
       if (pasta) {
@@ -124,7 +140,7 @@ export async function syncRoutes(app: FastifyInstance) {
         .select()
         .from(contentItems)
         .where(and(
-          eq(contentItems.projectId, projeto.id),
+          eq(contentItems.projectId, contexto.projeto.id),
           eq(contentItems.type, item.type),
           eq(contentItems.slug, item.slug),
         ))
@@ -150,14 +166,14 @@ export async function syncRoutes(app: FastifyInstance) {
           })
           .where(eq(contentItems.id, existente.id));
 
-        await vincularTags(request.user.id, existente.id, item.tags);
+        await vincularTags(request.user.id, contexto.workspace.id, existente.id, item.tags);
         atualizados.push(item.slug);
       } else {
         const [novo] = await db
           .insert(contentItems)
           .values({
             userId: request.user.id,
-            projectId: projeto.id,
+            projectId: contexto.projeto.id,
             folderId,
             type: item.type,
             title: item.title,
@@ -167,7 +183,7 @@ export async function syncRoutes(app: FastifyInstance) {
           })
           .returning({ id: contentItems.id });
 
-        await vincularTags(request.user.id, novo.id, item.tags);
+        await vincularTags(request.user.id, contexto.workspace.id, novo.id, item.tags);
         criados.push(item.slug);
       }
     }
@@ -182,7 +198,7 @@ export async function syncRoutes(app: FastifyInstance) {
   });
 
   app.get('/status', async (request, reply) => {
-    const { project, since } = request.query as { project?: string; since?: string };
+    const { workspace, project, since } = request.query as { workspace?: string; project?: string; since?: string };
 
     if (!project) {
       return reply.status(400).send({
@@ -190,13 +206,8 @@ export async function syncRoutes(app: FastifyInstance) {
       });
     }
 
-    const [projeto] = await db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.userId, request.user.id), eq(projects.slug, project)))
-      .limit(1);
-
-    if (!projeto) {
+    const contexto = await resolverProjeto(request.user.id, project, workspace);
+    if (!contexto) {
       return reply.status(404).send({
         error: { code: 'NOT_FOUND', message: `Projeto '${project}' não encontrado`, status: 404 },
       });
@@ -208,7 +219,7 @@ export async function syncRoutes(app: FastifyInstance) {
       .select({ id: contentItems.id, slug: contentItems.slug, type: contentItems.type, updatedAt: contentItems.updatedAt })
       .from(contentItems)
       .where(and(
-        eq(contentItems.projectId, projeto.id),
+        eq(contentItems.projectId, contexto.projeto.id),
         gte(contentItems.updatedAt, sinceDate),
       ));
 
@@ -222,7 +233,7 @@ export async function syncRoutes(app: FastifyInstance) {
   });
 }
 
-async function vincularTags(userId: string, contentId: string, tagNames: string[]) {
+async function vincularTags(userId: string, workspaceId: string, contentId: string, tagNames: string[]) {
   await db.delete(contentTags).where(eq(contentTags.contentId, contentId));
 
   if (tagNames.length === 0) return;
@@ -230,21 +241,22 @@ async function vincularTags(userId: string, contentId: string, tagNames: string[
   const tagsExistentes = await db
     .select({ id: tags.id, name: tags.name })
     .from(tags)
-    .where(and(eq(tags.userId, userId), inArray(tags.name, tagNames)));
+    .where(and(eq(tags.userId, userId), eq(tags.workspaceId, workspaceId), inArray(tags.name, tagNames)));
 
-  const nomesExistentes = new Set(tagsExistentes.map((t) => t.name));
-  const tagsFaltantes = tagNames.filter((n) => !nomesExistentes.has(n));
+  const nomesExistentes = new Set(tagsExistentes.map((tag) => tag.name));
+  const tagsFaltantes = tagNames.filter((name) => !nomesExistentes.has(name));
 
   const tagsCriadas = tagsFaltantes.length > 0
     ? await db
         .insert(tags)
-        .values(tagsFaltantes.map((name) => ({ userId, name, category: 'custom' as const })))
+        .values(tagsFaltantes.map((name) => ({ userId, workspaceId, name, category: 'custom' as const })))
         .returning({ id: tags.id, name: tags.name })
     : [];
 
   const todasTags = [...tagsExistentes, ...tagsCriadas];
+  if (todasTags.length === 0) return;
 
   await db.insert(contentTags).values(
-    todasTags.map((t) => ({ contentId, tagId: t.id })),
+    todasTags.map((tag) => ({ contentId, tagId: tag.id })),
   );
 }

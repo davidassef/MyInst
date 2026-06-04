@@ -3,6 +3,8 @@ import type {
   registrarUsuarioSchema,
   loginSchema,
   criarApiKeySchema,
+  criarWorkspaceSchema,
+  atualizarWorkspaceSchema,
   criarProjetoSchema,
   atualizarProjetoSchema,
   criarFolderSchema,
@@ -16,6 +18,8 @@ import type {
 export type RegistrarUsuarioInput = z.infer<typeof registrarUsuarioSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CriarApiKeyInput = z.infer<typeof criarApiKeySchema>;
+export type CriarWorkspaceInput = z.infer<typeof criarWorkspaceSchema>;
+export type AtualizarWorkspaceInput = z.infer<typeof atualizarWorkspaceSchema>;
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;
 export type AtualizarProjetoInput = z.infer<typeof atualizarProjetoSchema>;
 export type CriarFolderInput = z.infer<typeof criarFolderSchema>;
@@ -35,6 +39,18 @@ export interface Usuario {
 }
 
 export interface Projeto {
+  id: string;
+  userId: string;
+  workspaceId: string | null;
+  name: string;
+  slug: string;
+  description: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Workspace {
   id: string;
   userId: string;
   name: string;
@@ -75,6 +91,7 @@ export interface ConteudoItem {
 export interface Tag {
   id: string;
   userId: string;
+  workspaceId: string | null;
   name: string;
   category: string;
   color: string | null;

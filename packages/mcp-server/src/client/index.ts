@@ -8,6 +8,7 @@ interface PushItem {
 }
 
 interface PushParams {
+  workspace?: string;
   project: string;
   folderSlug?: string;
   items: PushItem[];
@@ -20,6 +21,7 @@ interface PushResponse {
 }
 
 interface PullParams {
+  workspace?: string;
   project: string;
   types?: string[];
   tags?: string[];
@@ -51,7 +53,16 @@ interface StatusResponse {
 
 interface SearchResultItem extends ConteudoItem {
   project_slug: string;
+  workspace_slug?: string;
   rank: number;
+}
+
+interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isDefault: boolean;
 }
 
 interface Projeto {
@@ -60,6 +71,7 @@ interface Projeto {
   slug: string;
   description: string | null;
   isDefault: boolean;
+  workspaceId?: string | null;
 }
 
 interface PerfilModelo {
@@ -99,6 +111,18 @@ export class MyInstClient {
     return this.request<Projeto[]>('/projects');
   }
 
+  async listarWorkspaces(): Promise<Workspace[]> {
+    return this.request<Workspace[]>('/workspaces');
+  }
+
+  async listarProjetosDoWorkspace(workspace?: string): Promise<Projeto[]> {
+    if (!workspace) {
+      return this.listarProjetos();
+    }
+
+    return this.request<Projeto[]>(`/workspaces/${encodeURIComponent(workspace)}/projects`);
+  }
+
   async pull(params: PullParams): Promise<PullResponse> {
     return this.request<PullResponse>('/sync/pull', {
       method: 'POST',
@@ -106,9 +130,10 @@ export class MyInstClient {
     });
   }
 
-  async status(project: string, since?: string): Promise<StatusResponse> {
+  async status(project: string, since?: string, workspace?: string): Promise<StatusResponse> {
     const query = new URLSearchParams({ project });
     if (since) query.set('since', since);
+    if (workspace) query.set('workspace', workspace);
     return this.request<StatusResponse>(`/sync/status?${query}`);
   }
 
@@ -119,27 +144,41 @@ export class MyInstClient {
     });
   }
 
-  async buscarConteudo(params: { query: string; project?: string; type?: string }): Promise<SearchResultItem[]> {
+  async buscarConteudo(params: { query: string; workspace?: string; project?: string; type?: string }): Promise<SearchResultItem[]> {
     const searchParams = new URLSearchParams({ q: params.query });
+    if (params.workspace) searchParams.set('workspace', params.workspace);
     if (params.project) searchParams.set('project', params.project);
     if (params.type) searchParams.set('type', params.type);
 
     return this.request<SearchResultItem[]>(`/search?${searchParams.toString()}`);
   }
 
-  async matchProfile(model: string): Promise<PerfilModelo | null> {
+  async matchProfile(model: string, workspace?: string): Promise<PerfilModelo | null> {
     try {
-      return await this.request<PerfilModelo>(`/profiles/match?model=${encodeURIComponent(model)}`);
+      const searchParams = new URLSearchParams({ model });
+      if (workspace) searchParams.set('workspace', workspace);
+      return await this.request<PerfilModelo>(`/profiles/match?${searchParams.toString()}`);
     } catch {
       return null;
     }
   }
 
-  async listarPastas(project: string): Promise<{ id: string; slug: string; name: string }[]> {
+  async listarPastas(project: string, workspace?: string): Promise<{ id: string; slug: string; name: string }[]> {
+    if (workspace) {
+      return this.request(`/workspaces/${encodeURIComponent(workspace)}/projects/${encodeURIComponent(project)}/folders`);
+    }
+
     return this.request(`/projects/${project}/folders`);
   }
 
-  async criarPasta(project: string, body: { name: string; slug: string }): Promise<{ id: string; slug: string; name: string }> {
+  async criarPasta(project: string, body: { name: string; slug: string }, workspace?: string): Promise<{ id: string; slug: string; name: string }> {
+    if (workspace) {
+      return this.request(`/workspaces/${encodeURIComponent(workspace)}/projects/${encodeURIComponent(project)}/folders`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    }
+
     return this.request(`/projects/${project}/folders`, {
       method: 'POST',
       body: JSON.stringify(body),

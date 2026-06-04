@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { aplicarConteudo } from '../src/applier/index.js';
@@ -32,10 +32,11 @@ describe('Applier', () => {
     }];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(1);
-    expect(normalizePath(resultado[0].path)).toContain('.claude/skills/tdd.md');
+    expect(resultado).toHaveLength(2);
+    expect(normalizePath(resultado[0].path)).toContain('.claude/MYINST.md');
+    expect(normalizePath(resultado[1].path)).toContain('.claude/skills/tdd.md');
 
-    const conteudo = await readFile(resultado[0].path, 'utf-8');
+    const conteudo = await readFile(resultado[1].path, 'utf-8');
     expect(conteudo).toBe('Escreva testes primeiro.');
   });
 
@@ -52,10 +53,10 @@ describe('Applier', () => {
     }];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(1);
-    expect(resultado[0].path).toContain('CLAUDE.md');
+    expect(resultado).toHaveLength(2);
+    expect(resultado[1].path).toContain('CLAUDE.md');
 
-    const conteudo = await readFile(resultado[0].path, 'utf-8');
+    const conteudo = await readFile(resultado[1].path, 'utf-8');
     expect(conteudo).toContain('# Regras Base');
     expect(conteudo).toContain('Use early return sempre.');
   });
@@ -73,8 +74,8 @@ describe('Applier', () => {
     }];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(1);
-    expect(normalizePath(resultado[0].path)).toContain('.claude/agents/code-reviewer.md');
+    expect(resultado).toHaveLength(2);
+    expect(normalizePath(resultado[1].path)).toContain('.claude/agents/code-reviewer.md');
   });
 
   it('aplica múltiplos itens de uma vez', async () => {
@@ -84,8 +85,74 @@ describe('Applier', () => {
     ];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(2);
-    expect(resultado[0].path).toContain('debug.md');
-    expect(resultado[1].path).toContain('contexto.md');
+    expect(resultado).toHaveLength(3);
+    expect(resultado[1].path).toContain('debug.md');
+    expect(resultado[2].path).toContain('contexto.md');
+  });
+
+  it('materializa guia operacional do MyInst sem sobrescrever CLAUDE.md', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'myinst-guia-'));
+    await mkdir(join(dir, '.claude'), { recursive: true });
+    await writeFile(join(dir, '.claude', 'CLAUDE.md'), 'Instrucoes do projeto.', 'utf-8');
+
+    const resultado = await aplicarConteudo([], dir);
+
+    expect(resultado).toHaveLength(1);
+    expect(normalizePath(resultado[0].path)).toContain('.claude/MYINST.md');
+
+    const guia = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
+    const claude = await readFile(join(dir, '.claude', 'CLAUDE.md'), 'utf-8');
+    expect(guia).toContain('myinst-managed: true');
+    expect(guia).toContain('myinst_pull -> trabalho local -> myinst_push');
+    expect(claude).toBe('Instrucoes do projeto.');
+
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('atualiza MYINST.md quando o arquivo já é gerenciado pelo MyInst', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'myinst-gerenciado-'));
+    await mkdir(join(dir, '.claude'), { recursive: true });
+    await writeFile(join(dir, '.claude', 'MYINST.md'), '<!-- myinst-managed: true -->\nconteudo antigo', 'utf-8');
+
+    const resultado = await aplicarConteudo([], dir);
+
+    expect(resultado[0].status).toBe('overwritten');
+    const guia = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
+    expect(guia).toContain('Fluxo padrao');
+    expect(guia).not.toContain('conteudo antigo');
+
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('preserva MYINST.md manual e cria vault-MYINST.md em conflito', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'myinst-conflito-'));
+    await mkdir(join(dir, '.claude'), { recursive: true });
+    await writeFile(join(dir, '.claude', 'MYINST.md'), 'arquivo manual', 'utf-8');
+
+    const resultado = await aplicarConteudo([], dir);
+
+    expect(resultado[0].status).toBe('prefixed');
+    expect(normalizePath(resultado[0].path)).toContain('.claude/vault-MYINST.md');
+
+    const manual = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
+    const guia = await readFile(join(dir, '.claude', 'vault-MYINST.md'), 'utf-8');
+    expect(manual).toBe('arquivo manual');
+    expect(guia).toContain('myinst-managed: true');
+
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('preserva MYINST.md manual com strategy skip', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'myinst-skip-'));
+    await mkdir(join(dir, '.claude'), { recursive: true });
+    await writeFile(join(dir, '.claude', 'MYINST.md'), 'arquivo manual', 'utf-8');
+
+    const resultado = await aplicarConteudo([], dir, 'skip');
+
+    expect(resultado[0].status).toBe('skipped');
+    const manual = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
+    expect(manual).toBe('arquivo manual');
+
+    await rm(dir, { recursive: true, force: true });
   });
 });

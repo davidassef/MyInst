@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { estaAutenticado } from './lib/api';
 import { LoginPage } from './pages/Login';
 import { DashboardPage } from './pages/Dashboard';
+import { WorkspacePage } from './pages/Workspace';
 import { ProjetoPage } from './pages/Projeto';
 import { ApiKeysPage } from './pages/ApiKeys';
 import { Layout } from './components/Layout';
@@ -24,7 +25,8 @@ export function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-        <Route path="projetos/:slug" element={<ProjetoPage />} />
+        <Route path="workspaces/:workspaceSlug" element={<WorkspacePage />} />
+        <Route path="workspaces/:workspaceSlug/projetos/:slug" element={<ProjetoPage />} />
         <Route path="api-keys" element={<ApiKeysPage />} />
       </Route>
     </Routes>

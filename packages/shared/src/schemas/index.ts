@@ -18,6 +18,14 @@ export const criarApiKeySchema = z.object({
   expiresAt: z.string().datetime().optional(),
 });
 
+export const criarWorkspaceSchema = z.object({
+  name: z.string().min(1).max(100),
+  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
+  description: z.string().max(500).optional(),
+});
+
+export const atualizarWorkspaceSchema = criarWorkspaceSchema.partial();
+
 export const criarProjetoSchema = z.object({
   name: z.string().min(1).max(100),
   slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
@@ -61,6 +69,7 @@ export const criarPerfilSchema = z.object({
 export const atualizarPerfilSchema = criarPerfilSchema.partial();
 
 export const syncPullSchema = z.object({
+  workspace: z.string().optional(),
   project: z.string(),
   types: z.array(z.enum(CONTENT_TYPES)).optional(),
   tags: z.array(z.string()).optional(),
@@ -68,6 +77,7 @@ export const syncPullSchema = z.object({
 });
 
 export const syncPushSchema = z.object({
+  workspace: z.string().optional(),
   project: z.string(),
   folderSlug: z.string().regex(/^[a-z0-9-]+$/).optional(),
   items: z.array(z.object({

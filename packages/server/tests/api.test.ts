@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { eq } from 'drizzle-orm';
 import { authRoutes } from '../src/routes/auth.js';
+import { workspaceRoutes } from '../src/routes/workspaces.js';
 import { projectRoutes } from '../src/routes/projects.js';
 import { contentRoutes } from '../src/routes/content.js';
 import { syncRoutes } from '../src/routes/sync.js';
@@ -21,8 +22,9 @@ function criarApp() {
   app.register(jwt, { secret: 'test-secret' });
   app.get('/health', async () => ({ status: 'ok' }));
   app.register(authRoutes, { prefix: '/api/v1/auth' });
-  app.register(projectRoutes, { prefix: '/api/v1/projects' });
-  app.register(contentRoutes, { prefix: '/api/v1/projects' });
+  app.register(workspaceRoutes, { prefix: '/api/v1' });
+  app.register(projectRoutes, { prefix: '/api/v1' });
+  app.register(contentRoutes, { prefix: '/api/v1' });
   app.register(syncRoutes, { prefix: '/api/v1/sync' });
   app.register(tagRoutes, { prefix: '/api/v1/tags' });
   app.register(searchRoutes, { prefix: '/api/v1' });
@@ -35,6 +37,7 @@ describe('MyInst API', () => {
   const app = criarApp();
   let token: string;
   let apiKey: string;
+  const workspaceSecundarioSlug = 'cliente-acme';
 
   beforeAll(async () => {
     await seedPlans();
@@ -120,6 +123,23 @@ describe('MyInst API', () => {
       apiKey = body.data.key;
     });
 
+    it('GET /workspaces lista o workspace default criado no cadastro', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/workspaces',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'default',
+            isDefault: true,
+          }),
+        ]),
+      );
+    });
+
     it('GET /auth/api-keys lista keys do usuário', async () => {
       const res = await app.inject({
         method: 'GET',
@@ -137,6 +157,23 @@ describe('MyInst API', () => {
         headers: { authorization: `Bearer ${apiKey}` },
       });
       expect(res.statusCode).toBe(200);
+    });
+
+    it('JWT com usuário inexistente retorna 401', async () => {
+      const tokenOrfao = app.jwt.sign({
+        id: '00000000-0000-0000-0000-000000000001',
+        email: 'orfao@local.dev',
+        displayName: 'Órfão',
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/workspaces',
+        headers: { authorization: `Bearer ${tokenOrfao}` },
+      });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.json().error.code).toBe('UNAUTHORIZED');
     });
   });
 
@@ -184,6 +221,70 @@ describe('MyInst API', () => {
     });
   });
 
+  describe('Workspaces', () => {
+    it('POST /workspaces cria novo workspace e projeto default', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/workspaces',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          name: 'Cliente Acme',
+          slug: workspaceSecundarioSlug,
+          description: 'Workspace de teste',
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json().data.slug).toBe(workspaceSecundarioSlug);
+
+      const projetosRes = await app.inject({
+        method: 'GET',
+        url: `/api/v1/workspaces/${workspaceSecundarioSlug}/projects`,
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+      expect(projetosRes.statusCode).toBe(200);
+      expect(projetosRes.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'default',
+            isDefault: true,
+          }),
+        ]),
+      );
+    });
+
+    it('permite o mesmo slug de projeto em workspaces diferentes', async () => {
+      const projetosDefaultRes = await app.inject({
+        method: 'GET',
+        url: '/api/v1/projects',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+      expect(projetosDefaultRes.statusCode).toBe(200);
+      expect(projetosDefaultRes.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'default',
+            isDefault: true,
+          }),
+        ]),
+      );
+
+      const projetosWorkspaceRes = await app.inject({
+        method: 'GET',
+        url: `/api/v1/workspaces/${workspaceSecundarioSlug}/projects`,
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+      expect(projetosWorkspaceRes.statusCode).toBe(200);
+      expect(projetosWorkspaceRes.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'default',
+            isDefault: true,
+          }),
+        ]),
+      );
+    });
+  });
+
   describe('Tags', () => {
     it('POST /tags cria tag', async () => {
       const res = await app.inject({
@@ -225,6 +326,25 @@ describe('MyInst API', () => {
       });
       expect(res.statusCode).toBe(201);
       expect(res.json().data.slug).toBe('debug-skill');
+    });
+
+    it('POST /workspaces/:workspaceSlug/projects/:projectSlug/content cria skill isolada em outro workspace', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/workspaces/${workspaceSecundarioSlug}/projects/default/content`,
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          type: 'skill',
+          title: 'Acme Skill',
+          slug: 'acme-skill',
+          body: 'Skill exclusiva do workspace Acme.',
+          metadata: {},
+          tags: ['claude-sonnet'],
+          isActive: true,
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(res.json().data.slug).toBe('acme-skill');
     });
 
     it('GET /projects/:slug/content lista conteúdos', async () => {
@@ -360,6 +480,23 @@ describe('MyInst API', () => {
       });
       expect(res.statusCode).toBe(404);
     });
+
+    it('POST /sync/pull usa workspace explícito quando informado', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/sync/pull',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: { workspace: workspaceSecundarioSlug, project: 'default' },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'acme-skill',
+          }),
+        ]),
+      );
+    });
   });
 
   describe('Search', () => {
@@ -444,6 +581,32 @@ describe('MyInst API', () => {
       expect(body.data[0].tags).toBeDefined();
       expect(Array.isArray(body.data[0].tags)).toBe(true);
     });
+
+    it('GET /search não vaza conteúdo de outro workspace no modo legado', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/search?q=Acme',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toHaveLength(0);
+    });
+
+    it('GET /search encontra conteúdo quando workspace é informado', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/search?q=Acme&workspace=${workspaceSecundarioSlug}`,
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'acme-skill',
+          }),
+        ]),
+      );
+    });
   });
 
   describe('Profiles', () => {
@@ -488,6 +651,15 @@ describe('MyInst API', () => {
       const res = await app.inject({
         method: 'GET',
         url: '/api/v1/profiles/match?model=gpt-4o',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('GET /profiles/match respeita o workspace informado', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/profiles/match?model=claude-opus-4&workspace=${workspaceSecundarioSlug}`,
         headers: { authorization: `Bearer ${apiKey}` },
       });
       expect(res.statusCode).toBe(404);

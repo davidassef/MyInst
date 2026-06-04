@@ -7,6 +7,7 @@ import { aplicarConteudo } from './applier/index.js';
 import type { ConflictStrategy } from './applier/index.js';
 import { lerConteudoLocal } from './reader/index.js';
 import { importarDiretorio, detectarNomeRepositorio } from './importer/index.js';
+import { montarPreviewPull } from './pull-preview.js';
 
 const MYINST_VERSION = '0.1.0-beta.1';
 const MYINST_API_KEY = process.env.MYINST_API_KEY;
@@ -45,11 +46,25 @@ const server = new McpServer({
 });
 
 server.tool(
-  'myinst_list_projects',
-  'Lista todos os projetos do seu vault MyInst',
+  'myinst_list_workspaces',
+  'Lista todos os workspaces do seu vault MyInst',
   {},
   async () => {
-    const projetos = await client.listarProjetos();
+    const workspaces = await client.listarWorkspaces();
+    return {
+      content: [{ type: 'text', text: JSON.stringify(workspaces, null, 2) }],
+    };
+  },
+);
+
+server.tool(
+  'myinst_list_projects',
+  'Lista todos os projetos do seu vault MyInst',
+  {
+    workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
+  },
+  async ({ workspace }) => {
+    const projetos = await client.listarProjetosDoWorkspace(workspace);
     return {
       content: [{ type: 'text', text: JSON.stringify(projetos, null, 2) }],
     };
@@ -58,8 +73,9 @@ server.tool(
 
 server.tool(
   'myinst_pull',
-  'Puxa configurações do vault MyInst e aplica ao diretório do projeto local',
+  'Materializa o vault MyInst no projeto local, instala .claude/MYINST.md e prepara o fluxo pull -> trabalho local -> push',
   {
+    workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto para puxar (omita para "default")').optional(),
     types: z.array(z.string()).describe('Tipos de conteúdo para puxar (skill, instruction, mcp_config, agent, hook, memory)').optional(),
     tags: z.array(z.string()).describe('Filtrar por tags de modelo/provider').optional(),
@@ -68,33 +84,32 @@ server.tool(
     targetDir: z.string().describe('Diretório alvo para aplicar as configs (padrão: diretório atual)').optional(),
     conflictStrategy: z.enum(['overwrite', 'prefix', 'skip']).describe('O que fazer quando arquivo local já existe: overwrite (substitui), prefix (cria vault-<slug>), skip (ignora)').optional(),
   },
-  async ({ project, types, tags, model, dryRun, targetDir, conflictStrategy }) => {
+  async ({ workspace, project, types, tags, model, dryRun, targetDir, conflictStrategy }) => {
     const slug = project || 'default';
 
     const modelName = model || process.env.MYINST_MODEL;
     let tagsFinais = tags || [];
 
     if (modelName) {
-      const perfil = await client.matchProfile(modelName);
+      const perfil = await client.matchProfile(modelName, workspace);
       if (perfil) {
         const tagsSet = new Set([...tagsFinais, ...perfil.tags]);
         tagsFinais = [...tagsSet];
       }
     }
 
-    const resultado = await client.pull({ project: slug, types, tags: tagsFinais.length > 0 ? tagsFinais : undefined });
+    const resultado = await client.pull({
+      workspace,
+      project: slug,
+      types,
+      tags: tagsFinais.length > 0 ? tagsFinais : undefined,
+    });
 
     if (dryRun) {
-      const preview = resultado.items.map((item) => ({
-        type: item.type,
-        title: item.title,
-        slug: item.slug,
-        tags: item.tags,
-      }));
       return {
         content: [{
           type: 'text',
-          text: `[DRY RUN] ${resultado.items.length} item(ns) seriam aplicados:\n${JSON.stringify(preview, null, 2)}`,
+          text: montarPreviewPull(resultado.items),
         }],
       };
     }
@@ -126,14 +141,15 @@ server.tool(
 
 server.tool(
   'myinst_search',
-  'Busca conteúdo no vault MyInst por texto',
+  'Busca conteúdo no vault MyInst por texto para descoberta pontual; prefira myinst_pull para trabalho recorrente',
   {
+    workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto').optional(),
     query: z.string().describe('Texto para buscar no título ou corpo'),
     type: z.string().describe('Filtrar por tipo de conteúdo').optional(),
   },
-  async ({ project, query, type }) => {
-    const filtrados = await client.buscarConteudo({ query, project, type });
+  async ({ workspace, project, query, type }) => {
+    const filtrados = await client.buscarConteudo({ query, workspace, project, type });
 
     return {
       content: [{
@@ -150,12 +166,13 @@ server.tool(
   'myinst_status',
   'Verifica o que mudou no vault desde o último sync',
   {
+    workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto').optional(),
     since: z.string().describe('Data ISO para verificar mudanças desde (ex: 2025-01-01T00:00:00Z)').optional(),
   },
-  async ({ project, since }) => {
+  async ({ workspace, project, since }) => {
     const slug = project || 'default';
-    const status = await client.status(slug, since);
+    const status = await client.status(slug, since, workspace);
 
     return {
       content: [{
@@ -168,14 +185,15 @@ server.tool(
 
 server.tool(
   'myinst_push',
-  'Envia configurações locais (.claude/) para o vault MyInst',
+  'Sincroniza alterações locais em .claude/ de volta para o vault MyInst após criar ou editar skills e instruções',
   {
+    workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto destino (omita para "default")').optional(),
     sourceDir: z.string().describe('Diretório fonte com .claude/ (padrão: diretório atual)').optional(),
     types: z.array(z.string()).describe('Tipos de conteúdo para enviar (skill, agent, memory, snippet, instruction)').optional(),
     dryRun: z.boolean().describe('Apenas mostra o que seria enviado sem efetuar push').optional(),
   },
-  async ({ project, sourceDir, types, dryRun }) => {
+  async ({ workspace, project, sourceDir, types, dryRun }) => {
     const slug = project || 'default';
     const dir = sourceDir || process.cwd();
 
@@ -201,7 +219,7 @@ server.tool(
       };
     }
 
-    const resultado = await client.push({ project: slug, items: itens });
+    const resultado = await client.push({ workspace, project: slug, items: itens });
 
     return {
       content: [{
@@ -217,12 +235,13 @@ server.tool(
   'Importa conteúdo de qualquer diretório com estrutura Claude Code para o vault MyInst (skills, agents, memory, hooks, etc.). Organiza automaticamente em pasta com o nome do repositório.',
   {
     sourceDir: z.string().describe('Diretório fonte para escanear recursivamente'),
+    workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto destino (omita para "default")').optional(),
     folderName: z.string().describe('Nome da pasta destino (omita para auto-detectar via git remote ou nome da pasta)').optional(),
     dryRun: z.boolean().describe('Apenas mostra o que seria importado sem efetuar push').optional(),
     overwrite: z.boolean().describe('Sobrescrever itens existentes (padrão: false)').optional(),
   },
-  async ({ sourceDir, project, folderName, dryRun, overwrite }) => {
+  async ({ sourceDir, workspace, project, folderName, dryRun, overwrite }) => {
     const slug = project || 'default';
     const itens = await importarDiretorio(sourceDir);
 
@@ -244,7 +263,7 @@ server.tool(
       };
     }
 
-    const pastasExistentes = await client.listarPastas(slug);
+    const pastasExistentes = await client.listarPastas(slug, workspace);
     const pastaExistente = pastasExistentes.find((p) => p.slug === nomeRepo);
 
     if (!pastaExistente) {
@@ -252,10 +271,10 @@ server.tool(
         .split('-')
         .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
         .join(' ');
-      await client.criarPasta(slug, { name: nomeFormatado, slug: nomeRepo });
+      await client.criarPasta(slug, { name: nomeFormatado, slug: nomeRepo }, workspace);
     }
 
-    const existentes = await client.pull({ project: slug });
+    const existentes = await client.pull({ workspace, project: slug });
     const slugsExistentes = new Set(existentes.items.map((i) => `${i.type}:${i.slug}`));
 
     const paraEnviar = [];
@@ -280,7 +299,7 @@ server.tool(
       };
     }
 
-    const resultado = await client.push({ project: slug, folderSlug: nomeRepo, items: paraEnviar });
+    const resultado = await client.push({ workspace, project: slug, folderSlug: nomeRepo, items: paraEnviar });
 
     const linhas = [
       `Import concluído para projeto "${slug}" → pasta "${nomeRepo}":`,

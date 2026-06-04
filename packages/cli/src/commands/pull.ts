@@ -61,7 +61,7 @@ async function aplicarConteudo(items: ConteudoItem[], targetDir: string): Promis
   return aplicados;
 }
 
-export async function executarPull(projeto: string): Promise<void> {
+export async function executarPull(projeto: string, workspace?: string): Promise<void> {
   const config = carregarConfig();
 
   if (!config) {
@@ -78,7 +78,7 @@ export async function executarPull(projeto: string): Promise<void> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify({ project: projeto }),
+      body: JSON.stringify({ workspace, project: projeto }),
     });
 
     if (!resposta.ok) {

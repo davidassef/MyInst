@@ -5,6 +5,7 @@ import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { authRoutes } from './routes/auth.js';
 import { oauthRoutes } from './routes/oauth.js';
+import { workspaceRoutes } from './routes/workspaces.js';
 import { projectRoutes } from './routes/projects.js';
 import { contentRoutes } from './routes/content.js';
 import { syncRoutes } from './routes/sync.js';
@@ -31,8 +32,9 @@ app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOStrin
 
 await app.register(authRoutes, { prefix: '/api/v1/auth' });
 await app.register(oauthRoutes, { prefix: '/api/v1/auth' });
-await app.register(projectRoutes, { prefix: '/api/v1/projects' });
-await app.register(contentRoutes, { prefix: '/api/v1/projects' });
+await app.register(workspaceRoutes, { prefix: '/api/v1' });
+await app.register(projectRoutes, { prefix: '/api/v1' });
+await app.register(contentRoutes, { prefix: '/api/v1' });
 await app.register(syncRoutes, { prefix: '/api/v1/sync' });
 await app.register(tagRoutes, { prefix: '/api/v1/tags' });
 await app.register(searchRoutes, { prefix: '/api/v1' });

@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import oauthPlugin from '@fastify/oauth2';
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { users, oauthAccounts, projects } from '../db/schema.js';
+import { users, oauthAccounts } from '../db/schema.js';
+import { obterWorkspaceDefault } from '../lib/workspaces.js';
 
 interface OAuthUserProfile {
   email: string;
@@ -87,6 +88,8 @@ async function processarLoginOAuth(
       .where(eq(users.id, contaOAuth.userId))
       .limit(1);
 
+    await obterWorkspaceDefault(usuario.id);
+
     return app.jwt.sign(
       { id: usuario.id, email: usuario.email, displayName: usuario.displayName },
       { expiresIn: '7d' },
@@ -100,6 +103,8 @@ async function processarLoginOAuth(
     .limit(1);
 
   if (usuarioExistente) {
+    await obterWorkspaceDefault(usuarioExistente.id);
+
     await db.insert(oauthAccounts).values({
       userId: usuarioExistente.id,
       provider,
@@ -127,13 +132,7 @@ async function processarLoginOAuth(
     email: perfil.email,
   });
 
-  await db.insert(projects).values({
-    userId: novoUsuario.id,
-    name: 'Default',
-    slug: 'default',
-    description: 'Projeto padrão',
-    isDefault: true,
-  });
+  await obterWorkspaceDefault(novoUsuario.id);
 
   return app.jwt.sign(
     { id: novoUsuario.id, email: novoUsuario.email, displayName: novoUsuario.displayName },

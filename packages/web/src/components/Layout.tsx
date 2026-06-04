@@ -24,7 +24,7 @@ export function Layout() {
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
           >
             <Home size={18} />
-            <span>Projetos</span>
+            <span>Workspaces</span>
           </Link>
           <Link
             to="/api-keys"
