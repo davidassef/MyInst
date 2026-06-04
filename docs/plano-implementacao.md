@@ -110,3 +110,8 @@
 2. Comprar domínio
 3. Configurar VPS (subir shared-infra + deploy)
 4. Criar apps OAuth no Google/GitHub
+
+## Referência operacional atual
+
+- VPS de destino do MyInst: `16.52.85.33`
+- O subdomínio do projeto deverá apontar para esse IP antes do go-live

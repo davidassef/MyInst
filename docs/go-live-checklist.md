@@ -2,6 +2,12 @@
 
 Checklist para o primeiro deploy do MyInst em beta privado, saindo de localhost direto para produção.
 
+## Ambiente alvo
+
+- VPS de deploy atual: `16.52.85.33`
+- Papel da VPS: hospedar web, API e shared-infra do MyInst
+- O subdomínio público ainda será definido e deverá apontar para esse IP
+
 ## 1. Preflight local
 
 Execute antes de qualquer deploy:
@@ -28,7 +34,7 @@ Esse comando sobe Postgres local, aplica schema, sobe API em modo produção e e
 
 ## 3. Variáveis de produção
 
-Na VPS:
+Na VPS `16.52.85.33`:
 
 ```bash
 cp deploy/.env.production.example .env

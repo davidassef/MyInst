@@ -2,6 +2,12 @@
 
 MyInst pode ser hospedado em qualquer servidor com Docker ou Node.js + PostgreSQL.
 
+## Ambiente atual do projeto
+
+- VPS principal planejada para o primeiro deploy: `16.52.85.33`
+- O domínio público deve apontar para esse IP
+- O deploy continua sendo feito via `git pull`, nunca por cópia manual de arquivos
+
 ## Com Docker Compose (recomendado)
 
 ### 1. Clone o repositório
