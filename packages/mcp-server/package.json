@@ -1,0 +1,54 @@
+{
+  "name": "@myinst/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server para sincronizar instruções e configurações de IA do vault MyInst",
+  "type": "module",
+  "license": "AGPL-3.0",
+  "bin": {
+    "myinst-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "skills",
+    "instructions",
+    "sync",
+    "claude",
+    "cursor"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davidassef/MyInst.git",
+    "directory": "packages/mcp-server"
+  },
+  "homepage": "https://github.com/davidassef/MyInst/tree/main/packages/mcp-server",
+  "bugs": {
+    "url": "https://github.com/davidassef/MyInst/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc --noEmit",
+    "test": "vitest",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@myinst/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}

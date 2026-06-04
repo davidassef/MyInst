@@ -1,0 +1,21 @@
+import { z } from 'zod';
+
+export const CONTENT_TYPES = [
+  'skill',
+  'instruction',
+  'mcp_config',
+  'agent',
+  'hook',
+  'memory',
+  'snippet',
+] as const;
+
+export type ContentType = (typeof CONTENT_TYPES)[number];
+
+export const TAG_CATEGORIES = ['model', 'provider', 'custom'] as const;
+export type TagCategory = (typeof TAG_CATEGORIES)[number];
+
+export const API_KEY_PREFIX = 'myinst_';
+
+export const API_KEY_SCOPES = ['read', 'write'] as const;
+export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];

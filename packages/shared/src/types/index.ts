@@ -1,0 +1,115 @@
+import { z } from 'zod';
+import type {
+  registrarUsuarioSchema,
+  loginSchema,
+  criarApiKeySchema,
+  criarProjetoSchema,
+  atualizarProjetoSchema,
+  criarFolderSchema,
+  criarConteudoSchema,
+  atualizarConteudoSchema,
+  criarTagSchema,
+  syncPullSchema,
+  syncPushSchema,
+} from '../schemas/index.js';
+
+export type RegistrarUsuarioInput = z.infer<typeof registrarUsuarioSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+export type CriarApiKeyInput = z.infer<typeof criarApiKeySchema>;
+export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;
+export type AtualizarProjetoInput = z.infer<typeof atualizarProjetoSchema>;
+export type CriarFolderInput = z.infer<typeof criarFolderSchema>;
+export type CriarConteudoInput = z.infer<typeof criarConteudoSchema>;
+export type AtualizarConteudoInput = z.infer<typeof atualizarConteudoSchema>;
+export type CriarTagInput = z.infer<typeof criarTagSchema>;
+export type SyncPullInput = z.infer<typeof syncPullSchema>;
+export type SyncPushInput = z.infer<typeof syncPushSchema>;
+
+export interface Usuario {
+  id: string;
+  email: string;
+  displayName: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Projeto {
+  id: string;
+  userId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Folder {
+  id: string;
+  projectId: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface ConteudoItem {
+  id: string;
+  userId: string;
+  projectId: string;
+  folderId: string | null;
+  type: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  body: string;
+  metadata: Record<string, unknown>;
+  isActive: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  tags?: string[];
+}
+
+export interface Tag {
+  id: string;
+  userId: string;
+  name: string;
+  category: string;
+  color: string | null;
+}
+
+export interface ApiKey {
+  id: string;
+  userId: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface SyncPullResponse {
+  items: ConteudoItem[];
+  syncToken: string;
+  serverTime: string;
+}
+
+export interface ApiResponse<T> {
+  data: T;
+  meta?: {
+    total: number;
+    page: number;
+    perPage: number;
+  };
+}
+
+export interface ApiError {
+  error: {
+    code: string;
+    message: string;
+    status: number;
+  };
+}

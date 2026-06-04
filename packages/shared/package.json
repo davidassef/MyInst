@@ -1,0 +1,41 @@
+{
+  "name": "@myinst/shared",
+  "version": "0.1.0",
+  "description": "Tipos e schemas compartilhados do MyInst",
+  "type": "module",
+  "license": "AGPL-3.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davidassef/MyInst.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/davidassef/MyInst/tree/main/packages/shared",
+  "bugs": {
+    "url": "https://github.com/davidassef/MyInst/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

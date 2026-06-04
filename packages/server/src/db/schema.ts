@@ -1,0 +1,170 @@
+import { sql } from 'drizzle-orm';
+import { pgTable, uuid, varchar, text, boolean, integer, timestamp, pgEnum, jsonb, inet, bigserial, uniqueIndex, index } from 'drizzle-orm/pg-core';
+
+export const contentTypeEnum = pgEnum('content_type', [
+  'skill',
+  'instruction',
+  'mcp_config',
+  'agent',
+  'hook',
+  'memory',
+  'snippet',
+]);
+
+export const tagCategoryEnum = pgEnum('tag_category', [
+  'model',
+  'provider',
+  'custom',
+]);
+
+export const plans = pgTable('plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 50 }).notNull().unique(),
+  maxItems: integer('max_items').notNull(),
+  maxProjects: integer('max_projects').notNull(),
+  maxApiKeys: integer('max_api_keys').notNull(),
+  rateLimit: integer('rate_limit').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  displayName: varchar('display_name', { length: 100 }).notNull(),
+  passwordHash: varchar('password_hash', { length: 255 }),
+  avatarUrl: text('avatar_url'),
+  planId: uuid('plan_id').references(() => plans.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const oauthProviderEnum = pgEnum('oauth_provider', ['google', 'github']);
+
+export const oauthAccounts = pgTable('oauth_accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: oauthProviderEnum('provider').notNull(),
+  providerAccountId: varchar('provider_account_id', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('oauth_accounts_provider_account_idx').on(table.provider, table.providerAccountId),
+  index('oauth_accounts_user_idx').on(table.userId),
+]);
+
+export const apiKeys = pgTable('api_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  keyPrefix: varchar('key_prefix', { length: 14 }).notNull(),
+  keyHash: varchar('key_hash', { length: 255 }).notNull(),
+  scopes: text('scopes').array().default(['read', 'write']).notNull(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('api_keys_user_name_idx').on(table.userId, table.name),
+  index('api_keys_hash_idx').on(table.keyHash),
+  index('api_keys_prefix_idx').on(table.keyPrefix),
+]);
+
+export const projects = pgTable('projects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  slug: varchar('slug', { length: 100 }).notNull(),
+  description: text('description'),
+  isDefault: boolean('is_default').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('projects_user_slug_idx').on(table.userId, table.slug),
+]);
+
+export const folders = pgTable('folders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  slug: varchar('slug', { length: 100 }).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('folders_project_slug_idx').on(table.projectId, table.slug),
+]);
+
+export const contentItems = pgTable('content_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'set null' }),
+  type: contentTypeEnum('type').notNull(),
+  title: varchar('title', { length: 200 }).notNull(),
+  slug: varchar('slug', { length: 200 }).notNull(),
+  description: text('description'),
+  body: text('body').notNull(),
+  metadata: jsonb('metadata').default({}).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  version: integer('version').default(1).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('content_project_type_slug_idx').on(table.projectId, table.type, table.slug),
+  index('content_user_project_idx').on(table.userId, table.projectId),
+  index('content_type_idx').on(table.type),
+  index('content_search_idx').using(
+    'gin',
+    sql`to_tsvector('portuguese', coalesce(${table.title}, '') || ' ' || coalesce(${table.body}, '') || ' ' || coalesce(${table.description}, ''))`,
+  ),
+]);
+
+export const tags = pgTable('tags', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 50 }).notNull(),
+  category: tagCategoryEnum('category').notNull(),
+  color: varchar('color', { length: 7 }),
+}, (table) => [
+  uniqueIndex('tags_user_name_idx').on(table.userId, table.name),
+]);
+
+export const contentTags = pgTable('content_tags', {
+  contentId: uuid('content_id').notNull().references(() => contentItems.id, { onDelete: 'cascade' }),
+  tagId: uuid('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+}, (table) => [
+  index('content_tags_tag_idx').on(table.tagId),
+]);
+
+export const contentVersions = pgTable('content_versions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  contentId: uuid('content_id').notNull().references(() => contentItems.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  body: text('body').notNull(),
+  metadata: jsonb('metadata').default({}).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('content_versions_content_version_idx').on(table.contentId, table.version),
+]);
+
+export const modelProfiles = pgTable('model_profiles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  modelPattern: varchar('model_pattern', { length: 200 }).notNull(),
+  tags: text('tags').array().default([]).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('model_profiles_user_name_idx').on(table.userId, table.name),
+]);
+
+export const auditLog = pgTable('audit_log', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  action: varchar('action', { length: 50 }).notNull(),
+  resourceType: varchar('resource_type', { length: 50 }),
+  resourceId: uuid('resource_id'),
+  details: jsonb('details').default({}).notNull(),
+  ipAddress: inet('ip_address'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('audit_log_user_idx').on(table.userId, table.createdAt),
+]);

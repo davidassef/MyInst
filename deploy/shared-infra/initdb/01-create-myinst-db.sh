@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<EOSQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${DB_USER}') THEN
+    CREATE ROLE "${DB_USER}" LOGIN PASSWORD '${DB_PASSWORD}';
+  ELSE
+    ALTER ROLE "${DB_USER}" WITH LOGIN PASSWORD '${DB_PASSWORD}';
+  END IF;
+END
+\$\$;
+
+SELECT 'CREATE DATABASE myinst OWNER "${DB_USER}"'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'myinst')\gexec
+
+GRANT ALL PRIVILEGES ON DATABASE myinst TO "${DB_USER}";
+EOSQL

@@ -1,0 +1,53 @@
+name: shared-infra
+
+services:
+  shared-postgres:
+    image: postgres:16-alpine
+    container_name: shared-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      DB_USER: "${DB_USER:-myinst_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - shared-postgres-data:/var/lib/postgresql/data
+      - ./shared-infra/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      shared-infra-net:
+        aliases:
+          - postgres
+
+  shared-redis:
+    image: redis:7-alpine
+    container_name: shared-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - shared-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD}\" ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      shared-infra-net:
+        aliases:
+          - redis
+
+networks:
+  shared-infra-net:
+    name: shared-infra-net
+
+volumes:
+  shared-postgres-data:
+  shared-redis-data:

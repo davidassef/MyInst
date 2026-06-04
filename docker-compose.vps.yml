@@ -1,0 +1,73 @@
+# ================================================================================
+#  MyInst — Docker Compose para VPS Produção
+#  Uso: docker compose -f docker-compose.vps.yml up -d --build
+# ================================================================================
+#
+#  ✅ INFRAESTRUTURA COMPARTILHADA (gerenciada em ~/shared-infra/)
+#     Postgres: shared-postgres → alias "postgres" na rede shared-infra-net
+#     Redis:    shared-redis    → alias "redis"    na rede shared-infra-net
+#
+#  ⚠️  ANTES DO PRIMEIRO DEPLOY:
+#     1. Garantir que shared-infra está rodando:
+#        cd ~/shared-infra && docker compose up -d
+#     2. Criar database myinst (ou já existe via init-databases.sql)
+#     3. Configurar .env com as variáveis de produção
+# ================================================================================
+
+name: myinst-vps
+
+services:
+  myinst-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: myinst-api:latest
+    container_name: myinst-api
+    restart: always
+    ports:
+      - "127.0.0.1:3010:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: "postgresql://${DB_USER:-myinst_user}:${DB_PASSWORD:?DB_PASSWORD is required}@postgres:5432/myinst"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
+      GITHUB_CLIENT_ID: "${GITHUB_CLIENT_ID:-}"
+      GITHUB_CLIENT_SECRET: "${GITHUB_CLIENT_SECRET:-}"
+      OAUTH_CALLBACK_URL: "${OAUTH_CALLBACK_URL:-https://api.myinst.dev}"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - shared-infra-net
+
+  myinst-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: myinst-web:latest
+    container_name: myinst-web
+    restart: always
+    ports:
+      - "127.0.0.1:3011:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+    networks:
+      - shared-infra-net
+
+networks:
+  shared-infra-net:
+    external: true
+    name: shared-infra-net

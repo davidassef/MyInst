@@ -1,0 +1,32 @@
+services:
+  myinst:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://myinst:myinst-secret@db:5432/myinst
+      - JWT_SECRET=${JWT_SECRET:-troque-por-um-secret-seguro}
+      - PORT=3000
+      - NODE_ENV=production
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=myinst
+      - POSTGRES_PASSWORD=myinst-secret
+      - POSTGRES_DB=myinst
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myinst"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pg-data:

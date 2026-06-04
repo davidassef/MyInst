@@ -1,0 +1,38 @@
+{
+  "name": "myinst",
+  "private": true,
+  "description": "MyInst - Cofre pessoal de instruções e configurações de IA",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/davidassef/MyInst.git"
+  },
+  "homepage": "https://github.com/davidassef/MyInst",
+  "bugs": {
+    "url": "https://github.com/davidassef/MyInst/issues"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "dev:server": "pnpm --filter @myinst/server dev",
+    "dev:web": "pnpm --filter @myinst/web dev",
+    "validate": "pnpm lint && pnpm build && pnpm test",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "compose:check": "docker compose -f docker-compose.yml config && docker compose --env-file deploy/.env.production.example -f docker-compose.vps.yml config && docker compose --env-file deploy/.env.production.example -f deploy/docker-compose.shared-infra.yml config",
+    "release:check": "pnpm validate && pnpm compose:check",
+    "db:migrate": "pnpm --filter @myinst/server db:migrate",
+    "db:push": "pnpm --filter @myinst/server db:push",
+    "db:studio": "pnpm --filter @myinst/server db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["bcrypt", "esbuild"]
+  }
+}
