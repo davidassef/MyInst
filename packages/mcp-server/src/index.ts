@@ -8,8 +8,29 @@ import type { ConflictStrategy } from './applier/index.js';
 import { lerConteudoLocal } from './reader/index.js';
 import { importarDiretorio, detectarNomeRepositorio } from './importer/index.js';
 
+const MYINST_VERSION = '0.1.0-beta.1';
 const MYINST_API_KEY = process.env.MYINST_API_KEY;
 const MYINST_SERVER = process.env.MYINST_SERVER || 'http://localhost:3000';
+
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log([
+    'myinst-mcp',
+    '',
+    'Uso:',
+    '  MYINST_API_KEY=<token> MYINST_SERVER=<url> myinst-mcp',
+    '',
+    'Variaveis de ambiente:',
+    '  MYINST_API_KEY  Chave de API do MyInst',
+    '  MYINST_SERVER   URL base da API MyInst (padrao: http://localhost:3000)',
+    '  MYINST_MODEL    Nome do modelo para resolucao automatica de perfil',
+  ].join('\n'));
+  process.exit(0);
+}
+
+if (process.argv.includes('--version') || process.argv.includes('-v')) {
+  console.log(MYINST_VERSION);
+  process.exit(0);
+}
 
 if (!MYINST_API_KEY) {
   console.error('[ERROR] MYINST_API_KEY não configurada');
@@ -20,7 +41,7 @@ const client = new MyInstClient(MYINST_SERVER, MYINST_API_KEY);
 
 const server = new McpServer({
   name: 'myinst',
-  version: '0.1.0',
+  version: MYINST_VERSION,
 });
 
 server.tool(

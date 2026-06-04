@@ -7,11 +7,12 @@ import { executarPush } from './commands/push.js';
 import { executarList } from './commands/list.js';
 
 const programa = new Command();
+const MYINST_VERSION = '0.1.0-beta.1';
 
 programa
   .name('myinst')
   .description('CLI para gerenciar seu vault MyInst')
-  .version('0.1.0');
+  .version(MYINST_VERSION);
 
 programa
   .command('login')

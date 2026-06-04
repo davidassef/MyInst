@@ -1,6 +1,6 @@
 {
   "name": "@myinst/mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "description": "MCP server para sincronizar instruções e configurações de IA do vault MyInst",
   "type": "module",
   "license": "AGPL-3.0",
@@ -8,8 +8,11 @@
     "myinst-mcp": "dist/index.js"
   },
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "keywords": [
     "mcp",
@@ -23,7 +26,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/davidassef/MyInst.git",
+    "url": "git+ssh://git@github.com/davidassef/MyInst.git",
     "directory": "packages/mcp-server"
   },
   "homepage": "https://github.com/davidassef/MyInst/tree/main/packages/mcp-server",
@@ -41,7 +44,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@myinst/shared": "workspace:*",
+    "@myinst/shared": "0.1.0-beta.1",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "zod": "^3.24.0"
   },
