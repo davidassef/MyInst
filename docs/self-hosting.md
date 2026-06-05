@@ -8,7 +8,7 @@ MyInst pode ser hospedado em qualquer servidor com Docker ou Node.js + PostgreSQ
 - API: `16.52.85.33` (via Docker Compose)
 - Shared infra: PostgreSQL + Redis na mesma VPS
 - Frontend: Vercel apontando para `myinst.lotoscore.com.br`
-- API pública: `api.myinst.lotoscore.com.br`
+- API pública: `api-myinst.lotoscore.com.br`
 
 Deploy sempre via `git pull`, sem cópia manual de arquivos.
 
@@ -35,10 +35,10 @@ JWT_SECRET=gere-um-secret-longo-e-aleatorio
 PORT=3000
 NODE_ENV=production
 APP_URL=https://myinst.lotoscore.com.br
-API_PUBLIC_URL=https://api.myinst.lotoscore.com.br
+API_PUBLIC_URL=https://api-myinst.lotoscore.com.br
 CORS_ORIGIN=https://myinst.lotoscore.com.br
 WEB_OAUTH_SUCCESS_URL=https://myinst.lotoscore.com.br/login
-OAUTH_CALLBACK_URL=https://api.myinst.lotoscore.com.br
+OAUTH_CALLBACK_URL=https://api-myinst.lotoscore.com.br
 ```
 
 ### 3. Suba a shared-infra (primeiro)
@@ -87,7 +87,7 @@ pnpm --filter @myinst/server start
 No Vercel, configure a variável de ambiente:
 
 ```env
-VITE_MYINST_API_BASE=https://api.myinst.lotoscore.com.br
+VITE_MYINST_API_BASE=https://api-myinst.lotoscore.com.br
 ```
 
 ## Backup
@@ -115,7 +115,7 @@ psql -h localhost -U myinst myinst < backup_20250101.sql
 | `CORS_ORIGIN` | Sim em produção | Origem permitida no CORS | `https://seudominio.com` |
 | `WEB_OAUTH_SUCCESS_URL` | Sim em produção | Retorno OAuth no frontend | `https://seudominio.com/login` |
 | `OAUTH_CALLBACK_URL` | Sim se OAuth estiver ativo | Base dos callbacks OAuth | `https://seudominio.com` |
-| `VITE_MYINST_API_BASE` | Não | Base da API usada pelo frontend em produção | `https://api.myinst.lotoscore.com.br` |
+| `VITE_MYINST_API_BASE` | Não | Base da API usada pelo frontend em produção | `https://api-myinst.lotoscore.com.br` |
 | `PORT` | Não | Porta do servidor (padrão: 3000) | `3000` |
 | `NODE_ENV` | Não | Ambiente (development/production) | `production` |
 

@@ -6,7 +6,7 @@ Checklist para o primeiro deploy do MyInst em beta privado, saindo de localhost 
 
 - VPS de deploy atual: `16.52.85.33`
 - Papel da VPS: hospedar API e shared-infra do MyInst
-- Frontend pode ficar no Vercel em `myinst.lotoscore.com.br` e API no subdomínio `api.myinst.lotoscore.com.br`
+- Frontend pode ficar no Vercel em `myinst.lotoscore.com.br` e API no subdomínio `api-myinst.lotoscore.com.br`
 
 ## 1. Preflight local
 
@@ -28,8 +28,8 @@ Esse comando sobe Postgres local, aplica schema, sobe API em modo produção e e
 ## 2. DNS e domínio
 
 - Frontend (Vercel): `https://myinst.lotoscore.com.br`
-- API (VPS): `https://api.myinst.lotoscore.com.br`
-- `api.myinst.lotoscore.com.br` deve apontar para `16.52.85.33`
+- API (VPS): `https://api-myinst.lotoscore.com.br`
+- `api-myinst.lotoscore.com.br` deve apontar para `16.52.85.33`
 
 ## 3. Variáveis de produção
 
@@ -71,7 +71,7 @@ docker compose --env-file .env -f deploy/docker-compose.shared-infra.yml up -d
 MYINST_COMPOSE_FILE=deploy/docker-compose.vps-api.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
 docker compose --env-file .env -f deploy/docker-compose.vps-api.yml up -d --build
 ```
-No Vercel, configure `VITE_MYINST_API_BASE=https://api.myinst.lotoscore.com.br` para o projeto web.
+No Vercel, configure `VITE_MYINST_API_BASE=https://api-myinst.lotoscore.com.br` para o projeto web.
 
 ## 5. Validação pós-deploy
 
