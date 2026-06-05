@@ -44,7 +44,10 @@ if (resultado.status === 0) {
 process.exit(resultado.status || 1);
 
 function descobrirServico(arquivoCompose: string) {
-  if (arquivoCompose.endsWith('docker-compose.vps.yml')) {
+  if (
+    arquivoCompose.endsWith('docker-compose.vps.yml') ||
+    arquivoCompose.endsWith('docker-compose.vps-api.yml')
+  ) {
     return 'myinst-api';
   }
 

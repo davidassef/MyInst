@@ -133,7 +133,8 @@ Principais variaveis:
 - `GOOGLE_CLIENT_SECRET`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
-- `OAUTH_CALLBACK_URL`
+  - `OAUTH_CALLBACK_URL`
+  - `VITE_MYINST_API_BASE`
 
 ## Comandos Importantes
 
@@ -229,7 +230,8 @@ Arquivos relevantes:
 Modos suportados:
 
 - Docker Compose local: [docker-compose.yml](docker-compose.yml)
-- VPS com API + frontend separados: [docker-compose.vps.yml](docker-compose.vps.yml)
+- VPS para API + shared-infra: [deploy/docker-compose.vps-api.yml](deploy/docker-compose.vps-api.yml) e [deploy/docker-compose.shared-infra.yml](deploy/docker-compose.shared-infra.yml)
+- Alternativa de stack completa no VPS (inclui nginx do web): [docker-compose.vps.yml](docker-compose.vps.yml)
 - Infra compartilhada versionada: [deploy/docker-compose.shared-infra.yml](deploy/docker-compose.shared-infra.yml)
 
 Documentacao:

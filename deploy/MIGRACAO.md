@@ -13,7 +13,7 @@ docker compose -f deploy/docker-compose.shared-infra.yml --env-file deploy/.env.
 
 # 2. Deploy do MyInst
 cd ~/myinst
-docker compose -f docker-compose.vps.yml up -d --build
+docker compose -f deploy/docker-compose.vps-api.yml up -d --build
 
 # 3. Verificar
 curl http://localhost:3010/health
@@ -24,4 +24,3 @@ curl http://localhost:3010/health
 | Serviço | Porta |
 |---------|-------|
 | API | 127.0.0.1:3010 |
-| Web | 127.0.0.1:3011 |

@@ -2,11 +2,15 @@
 
 MyInst pode ser hospedado em qualquer servidor com Docker ou Node.js + PostgreSQL.
 
-## Ambiente atual do projeto
+## Arquitetura recomendada
 
-- VPS principal planejada para o primeiro deploy: `16.52.85.33`
-- O domínio público deve apontar para esse IP
-- O deploy continua sendo feito via `git pull`, nunca por cópia manual de arquivos
+- VPS (atual): `16.52.85.33`
+- API: `16.52.85.33` (via Docker Compose)
+- Shared infra: PostgreSQL + Redis na mesma VPS
+- Frontend: Vercel apontando para `myinst.lotoscore.com.br`
+- API pública: `api.myinst.lotoscore.com.br`
+
+Deploy sempre via `git pull`, sem cópia manual de arquivos.
 
 ## Com Docker Compose (recomendado)
 
@@ -25,58 +29,37 @@ cp .env.example .env
 
 Edite `.env`:
 ```env
-DATABASE_URL=postgresql://myinst:senha-segura@db:5432/myinst
+DB_PASSWORD=senha-forte
+POSTGRES_PASSWORD=senha-root-forte
 JWT_SECRET=gere-um-secret-longo-e-aleatorio
 PORT=3000
 NODE_ENV=production
-APP_URL=https://seudominio.com
-API_PUBLIC_URL=https://seudominio.com
-CORS_ORIGIN=https://seudominio.com
-WEB_OAUTH_SUCCESS_URL=https://seudominio.com/login
-OAUTH_CALLBACK_URL=https://seudominio.com
+APP_URL=https://myinst.lotoscore.com.br
+API_PUBLIC_URL=https://api.myinst.lotoscore.com.br
+CORS_ORIGIN=https://myinst.lotoscore.com.br
+WEB_OAUTH_SUCCESS_URL=https://myinst.lotoscore.com.br/login
+OAUTH_CALLBACK_URL=https://api.myinst.lotoscore.com.br
 ```
 
-### 3. Suba os containers
+### 3. Suba a shared-infra (primeiro)
 
 ```bash
-docker compose up -d
-pnpm db:deploy:schema
+docker compose --env-file deploy/.env.production.example -f deploy/docker-compose.shared-infra.yml up -d
 ```
 
-### docker-compose.yml
+### 4. Suba a API
 
-```yaml
-services:
-  myinst:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=postgresql://myinst:senha-segura@db:5432/myinst
-      - JWT_SECRET=${JWT_SECRET}
-      - PORT=3000
-      - NODE_ENV=production
-    depends_on:
-      db:
-        condition: service_healthy
-
-  db:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_USER=myinst
-      - POSTGRES_PASSWORD=senha-segura
-      - POSTGRES_DB=myinst
-    volumes:
-      - pg-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U myinst"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  pg-data:
+```bash
+docker compose --env-file .env -f deploy/docker-compose.vps-api.yml up -d --build
 ```
+
+Para primeiro deploy com schema:
+
+```bash
+MYINST_COMPOSE_FILE=deploy/docker-compose.vps-api.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
+```
+
+Observação: se você precisar da stack web no próprio VPS, use `docker-compose.vps.yml`.
 
 ## Sem Docker
 
@@ -99,26 +82,12 @@ pnpm build
 pnpm --filter @myinst/server start
 ```
 
-## Reverse Proxy (Nginx)
+## Observação para Vercel
 
-Para expor com HTTPS:
+No Vercel, configure a variável de ambiente:
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name seudominio.com;
-
-    ssl_certificate /etc/letsencrypt/live/seudominio.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/seudominio.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:3011;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+```env
+VITE_MYINST_API_BASE=https://api.myinst.lotoscore.com.br
 ```
 
 ## Backup
@@ -146,6 +115,7 @@ psql -h localhost -U myinst myinst < backup_20250101.sql
 | `CORS_ORIGIN` | Sim em produção | Origem permitida no CORS | `https://seudominio.com` |
 | `WEB_OAUTH_SUCCESS_URL` | Sim em produção | Retorno OAuth no frontend | `https://seudominio.com/login` |
 | `OAUTH_CALLBACK_URL` | Sim se OAuth estiver ativo | Base dos callbacks OAuth | `https://seudominio.com` |
+| `VITE_MYINST_API_BASE` | Não | Base da API usada pelo frontend em produção | `https://api.myinst.lotoscore.com.br` |
 | `PORT` | Não | Porta do servidor (padrão: 3000) | `3000` |
 | `NODE_ENV` | Não | Ambiente (development/production) | `production` |
 

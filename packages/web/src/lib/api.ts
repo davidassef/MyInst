@@ -1,4 +1,5 @@
-const BASE_URL = '/api/v1';
+const API_BASE = import.meta.env.VITE_MYINST_API_BASE || '/api';
+const BASE_URL = `${API_BASE.replace(/\/$/, '')}/api/v1`;
 
 function obterToken(): string | null {
   return localStorage.getItem('myinst_token');

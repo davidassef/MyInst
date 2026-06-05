@@ -1,28 +1,17 @@
-# ================================================================================
-#  MyInst — Docker Compose para VPS Produção
-#  Uso: docker compose -f docker-compose.vps.yml up -d --build
-#  Recomendações:
-#  - Para frontend em Vercel, use deploy/docker-compose.vps-api.yml
-#  - Este arquivo mantém a opção de web no próprio VPS (legacy)
-# ================================================================================
-#
-#  ✅ INFRAESTRUTURA COMPARTILHADA (gerenciada em ~/shared-infra/)
-#     Postgres: shared-postgres → alias "postgres" na rede shared-infra-net
-#     Redis:    shared-redis    → alias "redis"    na rede shared-infra-net
-#
-#  ⚠️  ANTES DO PRIMEIRO DEPLOY:
-#     1. Garantir que shared-infra está rodando:
-#        cd ~/shared-infra && docker compose up -d
-#     2. Criar database myinst (ou já existe via init-databases.sql)
-#     3. Configurar .env com as variáveis de produção
-# ================================================================================
+# ==============================================================================
+# MyInst — VPS API only
+# Uso:
+# 1) docker compose --env-file .env -f deploy/docker-compose.shared-infra.yml up -d
+# 2) MYINST_COMPOSE_FILE=deploy/docker-compose.vps-api.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
+# 3) docker compose --env-file .env -f deploy/docker-compose.vps-api.yml up -d --build
+# ==============================================================================
 
-name: myinst-vps
+name: myinst-vps-api
 
 services:
   myinst-api:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     image: myinst-api:latest
     container_name: myinst-api
@@ -53,23 +42,6 @@ services:
       driver: json-file
       options:
         max-size: "10m"
-        max-file: "3"
-    networks:
-      - shared-infra-net
-
-  myinst-web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-    image: myinst-web:latest
-    container_name: myinst-web
-    restart: always
-    ports:
-      - "127.0.0.1:3011:80"
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
         max-file: "3"
     networks:
       - shared-infra-net

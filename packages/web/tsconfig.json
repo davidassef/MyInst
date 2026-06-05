@@ -9,6 +9,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
+    "types": ["vite/client"],
     "noEmit": true,
     "baseUrl": ".",
     "paths": {

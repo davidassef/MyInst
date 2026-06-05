@@ -5,8 +5,8 @@ Checklist para o primeiro deploy do MyInst em beta privado, saindo de localhost 
 ## Ambiente alvo
 
 - VPS de deploy atual: `16.52.85.33`
-- Papel da VPS: hospedar web, API e shared-infra do MyInst
-- O subdomínio público ainda será definido e deverá apontar para esse IP
+- Papel da VPS: hospedar API e shared-infra do MyInst
+- Frontend pode ficar no Vercel em `myinst.lotoscore.com.br` e API no subdomínio `api.myinst.lotoscore.com.br`
 
 ## 1. Preflight local
 
@@ -25,12 +25,11 @@ pnpm prod:preflight
 
 Esse comando sobe Postgres local, aplica schema, sobe API em modo produção e executa smoke test. Ele altera o banco local do compose.
 
-## 2. DNS e proxy
+## 2. DNS e domínio
 
-- Use domínio único para web e API.
-- Web: `https://seudominio.com/`
-- API: `https://seudominio.com/api/`
-- O proxy reverso público deve apontar para `127.0.0.1:3011`, pois o Nginx do container web encaminha `/api/` para `myinst-api`.
+- Frontend (Vercel): `https://myinst.lotoscore.com.br`
+- API (VPS): `https://api.myinst.lotoscore.com.br`
+- `api.myinst.lotoscore.com.br` deve apontar para `16.52.85.33`
 
 ## 3. Variáveis de produção
 
@@ -46,6 +45,7 @@ Preencha:
 APP_URL=https://seudominio.com
 API_PUBLIC_URL=https://seudominio.com
 CORS_ORIGIN=https://seudominio.com
+VITE_MYINST_API_BASE=https://api.seudominio.com
 WEB_OAUTH_SUCCESS_URL=https://seudominio.com/login
 OAUTH_CALLBACK_URL=https://seudominio.com
 JWT_SECRET=secret-longo-gerado-com-openssl
@@ -68,15 +68,16 @@ Nunca copie arquivos manualmente para a VPS. Use apenas `git pull`.
 cd ~/MyInst
 git pull origin main
 docker compose --env-file .env -f deploy/docker-compose.shared-infra.yml up -d
-MYINST_COMPOSE_FILE=docker-compose.vps.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
-docker compose --env-file .env -f docker-compose.vps.yml up -d --build
+MYINST_COMPOSE_FILE=deploy/docker-compose.vps-api.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
+docker compose --env-file .env -f deploy/docker-compose.vps-api.yml up -d --build
 ```
+No Vercel, configure `VITE_MYINST_API_BASE=https://api.myinst.lotoscore.com.br` para o projeto web.
 
 ## 5. Validação pós-deploy
 
 ```bash
-curl https://seudominio.com/health
-MYINST_SMOKE_BASE_URL=https://seudominio.com pnpm smoke
+curl https://api.seudominio.com/health
+MYINST_SMOKE_BASE_URL=https://api.seudominio.com pnpm smoke
 ```
 
 Valide também:
