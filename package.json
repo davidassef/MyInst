@@ -12,8 +12,8 @@
   },
   "scripts": {
     "dev": "turbo dev",
-    "dev:server": "pnpm --filter @myinst/server dev",
-    "dev:web": "pnpm --filter @myinst/web dev",
+    "dev:backend": "pnpm --filter @myinst/backend dev",
+    "dev:frontend": "pnpm --filter @myinst/frontend dev",
     "validate": "pnpm lint && pnpm build && pnpm test",
     "build": "turbo build",
     "test": "turbo test",
@@ -21,14 +21,14 @@
     "compose:check": "docker compose -f docker-compose.yml config && docker compose --env-file deploy/.env.production.example -f docker-compose.vps.yml config && docker compose --env-file deploy/.env.production.example -f deploy/docker-compose.vps-api.yml config && docker compose --env-file deploy/.env.production.example -f deploy/docker-compose.shared-infra.yml config",
     "release:check": "pnpm validate && pnpm compose:check",
     "deploy:vps-api": "docker compose --env-file .env -f deploy/docker-compose.shared-infra.yml up -d && MYINST_COMPOSE_FILE=deploy/docker-compose.vps-api.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema && docker compose --env-file .env -f deploy/docker-compose.vps-api.yml up -d --build",
-    "smoke": "tsx packages/server/scripts/smoke.ts",
+    "smoke": "tsx backend/scripts/smoke.ts",
     "prod:preflight": "tsx scripts/prod-preflight.ts",
     "db:deploy:schema": "tsx scripts/db-deploy-schema.ts",
     "db:backup": "tsx scripts/db-backup.ts",
     "db:restore": "tsx scripts/db-restore.ts",
-    "db:migrate": "pnpm --filter @myinst/server db:migrate",
-    "db:push": "pnpm --filter @myinst/server db:push",
-    "db:studio": "pnpm --filter @myinst/server db:studio"
+    "db:migrate": "pnpm --filter @myinst/backend db:migrate",
+    "db:push": "pnpm --filter @myinst/backend db:push",
+    "db:studio": "pnpm --filter @myinst/backend db:studio"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

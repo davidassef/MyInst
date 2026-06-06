@@ -14,7 +14,7 @@ pnpm dev
 ## Estrutura
 
 - `packages/shared` — Tipos e schemas Zod compartilhados
-- `packages/server` — API Fastify
+- `backend` — API Fastify
 - `packages/mcp-server` — MCP Server (npm package)
 
 ## Comandos
@@ -57,15 +57,15 @@ pnpm compose:check
 # Todos os testes
 pnpm test
 
-# Apenas server
-pnpm --filter @myinst/server test
+# Apenas backend
+pnpm --filter @myinst/backend test
 
 # Apenas mcp-server
 pnpm --filter @myinst/mcp-server test
 ```
 
-Os testes de API usam `app.inject()` do Fastify e o pacote `@myinst/server`
-sobe um Postgres efêmero em Docker durante `pnpm --filter @myinst/server test`.
+Os testes de API usam `app.inject()` do Fastify e o pacote `@myinst/backend`
+sobe um Postgres efêmero em Docker durante `pnpm --filter @myinst/backend test`.
 Isso remove a dependência de um banco local pré-configurado.
 
 ## Licença

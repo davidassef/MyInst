@@ -79,16 +79,27 @@ cp .env.example .env
 pnpm install
 pnpm db:push
 pnpm build
-pnpm --filter @myinst/server start
+pnpm --filter @myinst/backend start
 ```
 
-## Observação para Vercel
+## Frontend na Vercel (monorepo)
 
-No Vercel, configure a variável de ambiente:
+O frontend em `frontend/` é independente do backend: não importa `@myinst/shared` nem `@myinst/backend`. O Turborepo só orquestra o desenvolvimento local; na Vercel você publica apenas a pasta frontend.
+
+### Configuração do projeto
+
+1. Importe o repositório na Vercel.
+2. Em **Root Directory**, selecione `frontend`.
+3. A Vercel deve detectar Vite automaticamente. O arquivo `frontend/vercel.json` já define install/build/output para o monorepo pnpm.
+4. Configure a variável de ambiente:
 
 ```env
 VITE_MYINST_API_BASE=https://api-myinst.lotoscore.com.br
 ```
+
+### Por que funciona com Root Directory
+
+Mesmo compartilhando o repositório com o backend, o `frontend/` tem dependências próprias (React, Vite, Tailwind). O `installCommand` sobe um nível (`..`) para rodar `pnpm install` na raiz do workspace e resolver o lockfile. O `buildCommand` compila só o frontend e gera `dist/`.
 
 ## Backup
 

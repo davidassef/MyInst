@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'drizzle-kit';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, '../../.env') });
+config({ path: resolve(__dirname, '../.env') });
 
 export default defineConfig({
   schema: './src/db/schema.ts',

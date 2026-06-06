@@ -26,7 +26,7 @@ args.push(
   [
     'corepack prepare pnpm@10.28.0 --activate',
     'pnpm install --frozen-lockfile',
-    'pnpm --filter @myinst/server db:push',
+    'pnpm --filter @myinst/backend db:push',
   ].join(' && '),
 );
 

@@ -96,7 +96,7 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Packages | 5 (@myinst/shared, server, mcp-server, cli, web) |
+| Packages | 5 (@myinst/shared, backend, mcp-server, cli, frontend) |
 | Testes automatizados | 73 |
 | Endpoints API | 25+ |
 | MCP Tools | 6 (list, pull, push, search, status, import) |

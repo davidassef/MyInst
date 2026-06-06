@@ -71,7 +71,7 @@ docker compose --env-file .env -f deploy/docker-compose.shared-infra.yml up -d
 MYINST_COMPOSE_FILE=deploy/docker-compose.vps-api.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
 docker compose --env-file .env -f deploy/docker-compose.vps-api.yml up -d --build
 ```
-No Vercel, configure `VITE_MYINST_API_BASE=https://api-myinst.lotoscore.com.br` para o projeto web.
+No Vercel, configure `VITE_MYINST_API_BASE=https://api-myinst.lotoscore.com.br` para o projeto frontend (Root Directory: `frontend`).
 
 ## 5. Validação pós-deploy
 

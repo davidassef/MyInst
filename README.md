@@ -52,11 +52,11 @@ Nao e marketplace. O foco e ser um cofre pessoal e controlado pelo usuario.
 
 ## Arquitetura
 
-O monorepo esta dividido em cinco pacotes:
+O repositorio esta dividido em frontend, backend e pacotes npm:
 
-- `packages/server`
+- `backend`
   API Fastify com auth, sync, busca, versionamento e persistencia
-- `packages/web`
+- `frontend`
   Aplicacao React para gerenciamento do vault
 - `packages/mcp-server`
   Servidor MCP local que conecta o usuario ao backend MyInst
@@ -81,12 +81,12 @@ O monorepo esta dividido em cinco pacotes:
 
 ```text
 MyInst/
+├── backend/
+├── frontend/
 ├── packages/
 │   ├── cli/
 │   ├── mcp-server/
-│   ├── server/
-│   ├── shared/
-│   └── web/
+│   └── shared/
 ├── deploy/
 ├── docs/
 ├── docker-compose.yml

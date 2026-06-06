@@ -49,13 +49,14 @@
 
 ```
 myinst/
+├── backend/             ← API Fastify
+│   ├── src/
+│   │   ├── routes/      (auth, projects, content, sync, tags)
+│   │   ├── db/          (schema Drizzle)
+│   │   └── middleware/
+│   └── tests/
+├── frontend/            ← App React (Vercel)
 ├── packages/
-│   ├── server/          ← API Fastify
-│   │   ├── src/
-│   │   │   ├── routes/  (auth, projects, content, sync, tags)
-│   │   │   ├── db/      (schema Drizzle)
-│   │   │   └── middleware/
-│   │   └── tests/
 │   ├── mcp-server/      ← MCP Server (npm package)
 │   │   ├── src/
 │   │   │   ├── tools/   (pull, push, search, status)
