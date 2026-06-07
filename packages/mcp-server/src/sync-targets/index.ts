@@ -246,7 +246,9 @@ function criarAdapterClaude(): ClienteAdapter {
         join(base, 'snippets'),
         join(base, 'hooks'),
         join(base, 'CLAUDE.md'),
+        join(ctx.projectDir, 'CLAUDE.md'),
         join(base, '.mcp.json'),
+        join(ctx.projectDir, '.mcp.json'),
       ]);
 
       if (encontrados.length === 0) return [];
@@ -258,13 +260,15 @@ function criarAdapterClaude(): ClienteAdapter {
         scope: 'project',
         detectedPaths: encontrados,
         supportedTypes: TIPOS_FULL,
-        estimatedItemCount: await contarArquivosMarkdown(join(base, 'skills'))
-          + await contarArquivosMarkdown(join(base, 'agents'))
-          + await contarArquivosMarkdown(join(base, 'memory'))
-          + await contarArquivosMarkdown(join(base, 'snippets'))
-          + await contarArquivosMarkdown(join(base, 'hooks'))
+        estimatedItemCount: await contarArquivosMarkdownRecursivo(join(base, 'skills'))
+          + await contarArquivosMarkdownRecursivo(join(base, 'agents'))
+          + await contarArquivosMarkdownRecursivo(join(base, 'memory'))
+          + await contarArquivosMarkdownRecursivo(join(base, 'snippets'))
+          + await contarArquivosMarkdownRecursivo(join(base, 'hooks'))
           + (await existe(join(base, 'CLAUDE.md')) ? 1 : 0)
-          + (await existe(join(base, '.mcp.json')) ? 1 : 0),
+          + (await existe(join(ctx.projectDir, 'CLAUDE.md')) ? 1 : 0)
+          + (await existe(join(base, '.mcp.json')) ? 1 : 0)
+          + (await existe(join(ctx.projectDir, '.mcp.json')) ? 1 : 0),
       }];
     },
     ler: async (target) => {
@@ -692,14 +696,20 @@ async function lerEstruturaClaude(raizProjeto: string): Promise<ItemSincronizave
   const itens = new Map<string, ItemSincronizavel>();
   const base = join(raizProjeto, '.claude');
 
-  await lerMarkdownsDiretos(join(base, 'skills'), 'skill', itens);
-  await lerMarkdownsDiretos(join(base, 'agents'), 'agent', itens);
-  await lerMarkdownsDiretos(join(base, 'memory'), 'memory', itens);
-  await lerMarkdownsDiretos(join(base, 'snippets'), 'snippet', itens);
-  await lerMarkdownsDiretos(join(base, 'hooks'), 'hook', itens);
-  await lerArquivoInstrucao(join(base, 'CLAUDE.md'), 'claude', itens);
+  await lerMarkdownsDiretos(join(base, 'skills'), 'skill', itens, ['.md'], true);
+  await lerMarkdownsDiretos(join(base, 'agents'), 'agent', itens, ['.md'], true);
+  await lerMarkdownsDiretos(join(base, 'memory'), 'memory', itens, ['.md'], true);
+  await lerMarkdownsDiretos(join(base, 'snippets'), 'snippet', itens, ['.md'], true);
+  await lerMarkdownsDiretos(join(base, 'hooks'), 'hook', itens, ['.md'], true);
+  await lerPrimeiroArquivoInstrucao([
+    { path: join(base, 'CLAUDE.md'), slug: 'claude' },
+    { path: join(raizProjeto, 'CLAUDE.md'), slug: 'claude' },
+  ], itens);
   await lerArquivosRules(base, itens);
-  await lerArquivoConfig(join(base, '.mcp.json'), 'mcp-config', 'MCP Config', itens);
+  await lerPrimeiroArquivoConfig([
+    { path: join(base, '.mcp.json'), slug: 'mcp-config', title: 'MCP Config' },
+    { path: join(raizProjeto, '.mcp.json'), slug: 'mcp-config', title: 'MCP Config' },
+  ], itens);
 
   return [...itens.values()];
 }
@@ -732,20 +742,31 @@ async function lerMarkdownsDiretos(
   tipo: TipoSincronizavel,
   itens: Map<string, ItemSincronizavel>,
   extensoesPermitidas = ['.md'],
+  recursivo = false,
+  prefixoSlug = '',
 ): Promise<void> {
-  let arquivos: string[];
+  let entradas: string[];
   try {
-    arquivos = await readdir(diretorio);
+    entradas = await readdir(diretorio);
   } catch {
     return;
   }
 
-  for (const arquivo of arquivos) {
-    if (!extensoesPermitidas.includes(extname(arquivo))) continue;
+  for (const entrada of entradas) {
+    const caminho = join(diretorio, entrada);
+    if (recursivo && await ehDiretorio(caminho)) {
+      if (DIRETORIOS_IGNORADOS.has(entrada)) continue;
+      const proximoPrefixo = prefixoSlug ? `${prefixoSlug}-${normalizarSlug(entrada)}` : normalizarSlug(entrada);
+      await lerMarkdownsDiretos(caminho, tipo, itens, extensoesPermitidas, true, proximoPrefixo);
+      continue;
+    }
 
-    const conteudo = await readFile(join(diretorio, arquivo), 'utf-8');
+    if (!extensoesPermitidas.includes(extname(entrada))) continue;
+
+    const conteudo = await readFile(caminho, 'utf-8');
     const { frontmatter, corpo } = parsearFrontmatter(conteudo);
-    const slug = normalizarSlug(basename(arquivo, extname(arquivo)));
+    const slugBase = normalizarSlug(basename(entrada, extname(entrada)));
+    const slug = prefixoSlug ? `${prefixoSlug}-${slugBase}` : slugBase;
     const titulo = typeof frontmatter.name === 'string' && frontmatter.name
       ? frontmatter.name
       : tituloDoSlug(slug);
@@ -819,6 +840,17 @@ async function lerArquivoInstrucao(caminhoArquivo: string, slug: string, itens: 
   });
 }
 
+async function lerPrimeiroArquivoInstrucao(
+  definicoes: Array<{ path: string; slug: string }>,
+  itens: Map<string, ItemSincronizavel>,
+) {
+  for (const definicao of definicoes) {
+    if (!(await existe(definicao.path))) continue;
+    await lerArquivoInstrucao(definicao.path, definicao.slug, itens);
+    return;
+  }
+}
+
 async function lerArquivoConfig(
   caminhoArquivo: string,
   slug: string,
@@ -836,6 +868,17 @@ async function lerArquivoConfig(
     metadata: {},
     tags: [],
   });
+}
+
+async function lerPrimeiroArquivoConfig(
+  definicoes: Array<{ path: string; slug: string; title: string }>,
+  itens: Map<string, ItemSincronizavel>,
+) {
+  for (const definicao of definicoes) {
+    if (!(await existe(definicao.path))) continue;
+    await lerArquivoConfig(definicao.path, definicao.slug, definicao.title, itens);
+    return;
+  }
 }
 
 async function lerArquivosRules(diretorio: string, itens: Map<string, ItemSincronizavel>) {
@@ -1096,6 +1139,31 @@ async function contarArquivosMarkdown(dir: string) {
   return contarArquivosPorExtensao(dir, ['.md']);
 }
 
+async function contarArquivosMarkdownRecursivo(dir: string): Promise<number> {
+  let entradas: string[];
+  try {
+    entradas = await readdir(dir);
+  } catch {
+    return 0;
+  }
+
+  let total = 0;
+  for (const entrada of entradas) {
+    const caminho = join(dir, entrada);
+    if (await ehDiretorio(caminho)) {
+      if (DIRETORIOS_IGNORADOS.has(entrada)) continue;
+      total += await contarArquivosMarkdownRecursivo(caminho);
+      continue;
+    }
+
+    if (extname(entrada) === '.md') {
+      total += 1;
+    }
+  }
+
+  return total;
+}
+
 async function contarArquivosPorExtensao(dir: string, extensoes: string[]) {
   let arquivos: string[];
   try {
@@ -1142,6 +1210,15 @@ async function existe(caminho: string): Promise<boolean> {
   try {
     await access(caminho, constants.F_OK);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ehDiretorio(caminho: string): Promise<boolean> {
+  try {
+    const { stat } = await import('node:fs/promises');
+    return (await stat(caminho)).isDirectory();
   } catch {
     return false;
   }

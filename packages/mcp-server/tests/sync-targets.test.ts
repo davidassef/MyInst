@@ -18,6 +18,8 @@ describe('sync targets', () => {
 
     await writeFile(join(tempDir, '.claude', 'skills', 'tdd.md'), 'Skill TDD');
     await writeFile(join(tempDir, '.claude', 'CLAUDE.md'), 'Instruções Claude');
+    await mkdir(join(tempDir, '.claude', 'skills', 'time-a'), { recursive: true });
+    await writeFile(join(tempDir, '.claude', 'skills', 'time-a', 'deploy.md'), 'Deploy time A');
     await writeFile(join(tempDir, '.cursor', 'rules', 'backend.mdc'), 'Regra Cursor');
     await writeFile(join(tempDir, '.cursor', 'mcp.json'), '{"servers":{}}');
     await writeFile(join(tempDir, '.codex', 'skills', 'infra-local', 'SKILL.md'), 'Skill Codex');
@@ -86,6 +88,24 @@ describe('sync targets', () => {
     expect(importacao.targets).toHaveLength(1);
     expect(importacao.targets[0].clientId).toBe('cursor');
     expect(importacao.items.map((item) => item.type).sort()).toEqual(['instruction', 'mcp_config']);
+  });
+
+  it('lê skills claude em estrutura aninhada e usa CLAUDE.md da raiz como fallback', async () => {
+    const modulo = await importarModulo();
+    const importacao = await modulo.importarTargetsDetectados(tempDir, 'project', ['claude']);
+
+    expect(importacao.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'skill',
+          slug: 'time-a-deploy',
+        }),
+        expect.objectContaining({
+          type: 'instruction',
+          slug: 'claude',
+        }),
+      ]),
+    );
   });
 
   it('escreve em formato nativo e reporta tipos ignorados sem suporte', async () => {
