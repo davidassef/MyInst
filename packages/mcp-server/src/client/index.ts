@@ -123,6 +123,23 @@ export class MyInstClient {
     return this.request<Projeto[]>(`/workspaces/${encodeURIComponent(workspace)}/projects`);
   }
 
+  async criarProjeto(
+    body: { name: string; slug: string; description?: string },
+    workspace?: string,
+  ): Promise<Projeto> {
+    if (workspace) {
+      return this.request<Projeto>(`/workspaces/${encodeURIComponent(workspace)}/projects`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    }
+
+    return this.request<Projeto>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
   async pull(params: PullParams): Promise<PullResponse> {
     return this.request<PullResponse>('/sync/pull', {
       method: 'POST',

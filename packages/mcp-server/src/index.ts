@@ -272,7 +272,6 @@ server.tool(
     scope: z.enum(SCOPES_SYNC).describe('Escopo de descoberta: project, global ou all').optional(),
   },
   async ({ workspace, project, sourceDir, types, dryRun, clients, scope }) => {
-    const slug = project || 'default';
     const dir = sourceDir || process.cwd();
     const resolucao = await resolverSelecaoSync(dir, scope, clients);
 
@@ -283,6 +282,16 @@ server.tool(
     if (resolucao.selectedTargets.length === 0) {
       return respostaTexto(montarMensagemSemClientes(dir, scope, clients));
     }
+
+    const projetoDestino = await resolverProjetoDestinoSync({
+      client,
+      workspace,
+      project,
+      sourceDir: dir,
+      selectedTargets: resolucao.selectedTargets,
+      dryRun,
+    });
+    const slug = projetoDestino.slug;
 
     const importacao = await importarTargetsDetectados(
       dir,
@@ -309,6 +318,7 @@ server.tool(
       const preview = itens.map((item) => ({ type: item.type, title: item.title, slug: item.slug }));
       return respostaTexto([
         `[DRY RUN] Origem detectada em ${dir}`,
+        montarResumoProjetoDestino(projetoDestino),
         montarResumoTargets(importacao.targets),
         `Tipos encontrados: ${montarResumoTipos(itens)}`,
         montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
@@ -321,6 +331,7 @@ server.tool(
     const resultado = await client.push({ workspace, project: slug, items: itens });
     return respostaTexto([
       `Push concluído para projeto "${slug}" a partir de ${dir}:`,
+      montarResumoProjetoDestino(projetoDestino),
       montarResumoTargets(importacao.targets),
       `Tipos sincronizados: ${montarResumoTipos(itens)}`,
       montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
@@ -344,7 +355,6 @@ server.tool(
     scope: z.enum(SCOPES_SYNC).describe('Escopo de descoberta: project, global ou all').optional(),
   },
   async ({ sourceDir, workspace, project, folderName, dryRun, overwrite, clients, scope }) => {
-    const slug = project || 'default';
     const resolucao = await resolverSelecaoSync(sourceDir, scope, clients);
 
     if (resolucao.requiresClientSelection) {
@@ -354,6 +364,16 @@ server.tool(
     if (resolucao.selectedTargets.length === 0) {
       return respostaTexto(montarMensagemSemClientes(sourceDir, scope, clients));
     }
+
+    const projetoDestino = await resolverProjetoDestinoSync({
+      client,
+      workspace,
+      project,
+      sourceDir,
+      selectedTargets: resolucao.selectedTargets,
+      dryRun,
+    });
+    const slug = projetoDestino.slug;
 
     const importacao = await importarTargetsDetectados(
       sourceDir,
@@ -377,6 +397,7 @@ server.tool(
     if (dryRun) {
       return respostaTexto([
         `[DRY RUN] Origem detectada em ${sourceDir}`,
+        montarResumoProjetoDestino(projetoDestino),
         montarResumoTargets(importacao.targets),
         `Tipos encontrados: ${montarResumoTipos(itensTratados.sincronizaveis)}`,
         montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
@@ -394,7 +415,11 @@ server.tool(
     const pastasExistentes = await client.listarPastas(slug, workspace);
     const existentes = await client.pull({ workspace, project: slug });
     const slugsExistentes = new Set(existentes.items.map((item) => `${item.type}:${item.slug}`));
-    const linhas = [`Import concluído para projeto "${slug}" a partir de ${sourceDir}:`, montarResumoTargets(importacao.targets)];
+    const linhas = [
+      `Import concluído para projeto "${slug}" a partir de ${sourceDir}:`,
+      montarResumoProjetoDestino(projetoDestino),
+      montarResumoTargets(importacao.targets),
+    ];
 
     if (itensTratados.ignoradosCompartilhados.length > 0) {
       linhas.push(montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados));
@@ -632,6 +657,101 @@ function formatarNomePasta(folderSlug: string) {
     .split('-')
     .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
     .join(' ');
+}
+
+async function resolverProjetoDestinoSync({
+  client,
+  workspace,
+  project,
+  sourceDir,
+  selectedTargets,
+  dryRun,
+}: {
+  client: MyInstClient;
+  workspace?: string;
+  project?: string;
+  sourceDir: string;
+  selectedTargets: SyncTarget[];
+  dryRun?: boolean;
+}) {
+  if (project) {
+    return {
+      slug: project,
+      name: formatarNomePasta(project),
+      created: false,
+      automatic: false,
+    };
+  }
+
+  const possuiEscopoProjeto = selectedTargets.some((target) => target.scope === 'project');
+  if (!possuiEscopoProjeto) {
+    return {
+      slug: 'default',
+      name: 'Default',
+      created: false,
+      automatic: false,
+    };
+  }
+
+  const slugDerivado = detectarNomeRepositorio(sourceDir);
+  const nomeDerivado = formatarNomePasta(slugDerivado);
+  const projetos = await client.listarProjetosDoWorkspace(workspace);
+  const existente = projetos.find((projetoAtual) => projetoAtual.slug === slugDerivado);
+
+  if (existente) {
+    return {
+      slug: existente.slug,
+      name: existente.name,
+      created: false,
+      automatic: true,
+    };
+  }
+
+  if (dryRun) {
+    return {
+      slug: slugDerivado,
+      name: nomeDerivado,
+      created: false,
+      automatic: true,
+      wouldCreate: true,
+    };
+  }
+
+  await client.criarProjeto({
+    name: nomeDerivado,
+    slug: slugDerivado,
+    description: `Projeto sincronizado automaticamente a partir de ${sourceDir}`,
+  }, workspace);
+
+  return {
+    slug: slugDerivado,
+    name: nomeDerivado,
+    created: true,
+    automatic: true,
+    wouldCreate: false,
+  };
+}
+
+function montarResumoProjetoDestino(projetoDestino: {
+  slug: string;
+  name: string;
+  created: boolean;
+  automatic: boolean;
+  wouldCreate?: boolean;
+}) {
+  if (!projetoDestino.automatic) {
+    return `Projeto destino: ${projetoDestino.slug}`;
+  }
+
+  if (projetoDestino.wouldCreate) {
+    return `Projeto destino: ${projetoDestino.slug} (${projetoDestino.name}) seria criado automaticamente a partir do repositório local`;
+  }
+
+  if (projetoDestino.created) {
+    return `Projeto destino: ${projetoDestino.slug} (${projetoDestino.name}) criado automaticamente a partir do repositório local`;
+  }
+
+  return `Projeto destino: ${projetoDestino.slug} (${projetoDestino.name}) resolvido automaticamente a partir do repositório local`;
 }
 
 function separarItensSincronizaveis(
