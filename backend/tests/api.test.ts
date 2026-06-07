@@ -815,6 +815,105 @@ describe('MyInst API', () => {
     });
   });
 
+  describe('Client Profiles', () => {
+    it('GET /client-profiles lista clientes globais suportados da conta', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/client-profiles',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            clientId: 'codex',
+            slug: 'codex',
+          }),
+        ]),
+      );
+    });
+
+    it('POST /client-profiles/:clientId/items cria item global', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/client-profiles/codex/items',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          type: 'instruction',
+          title: 'Infra Local',
+          slug: 'infra-local-global',
+          body: 'instrução global do codex',
+          metadata: { source: 'teste' },
+          tags: ['global', 'codex'],
+          isActive: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().data.slug).toBe('infra-local-global');
+      expect(res.json().data.tags).toEqual(['global', 'codex']);
+    });
+
+    it('GET /client-profiles/:clientId/items retorna apenas itens globais do cliente', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/client-profiles/codex/items',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'infra-local-global',
+            type: 'instruction',
+          }),
+        ]),
+      );
+    });
+
+    it('POST /sync/pull com scope=global retorna itens do client profile', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/sync/pull',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          scope: 'global',
+          clientId: 'codex',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'infra-local-global',
+          }),
+        ]),
+      );
+    });
+
+    it('GET /search com scope=global encontra conteúdo sem depender de projeto', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/search?q=global&scope=global&clientId=codex',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'infra-local-global',
+            source_scope: 'global',
+            client_id: 'codex',
+          }),
+        ]),
+      );
+    });
+  });
+
   describe('Profiles', () => {
     let perfilId: string;
 

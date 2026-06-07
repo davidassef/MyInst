@@ -14,6 +14,7 @@ import { tagRoutes } from './routes/tags.js';
 import { searchRoutes } from './routes/search.js';
 import { profileRoutes } from './routes/profiles.js';
 import { usageRoutes } from './routes/usage.js';
+import { clientProfileRoutes } from './routes/client-profiles.js';
 import { carregarAmbiente, type ConfiguracaoAmbiente } from './env.js';
 
 export async function criarApp(configuracao: ConfiguracaoAmbiente = carregarAmbiente()) {
@@ -65,6 +66,7 @@ export async function criarApp(configuracao: ConfiguracaoAmbiente = carregarAmbi
   await app.register(tagRoutes, { prefix: '/api/v1/tags' });
   await app.register(searchRoutes, { prefix: '/api/v1' });
   await app.register(profileRoutes, { prefix: '/api/v1/profiles' });
+  await app.register(clientProfileRoutes, { prefix: '/api/v1' });
   await app.register(usageRoutes, { prefix: '/api/v1/usage' });
 
   return app;

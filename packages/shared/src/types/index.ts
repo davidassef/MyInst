@@ -11,6 +11,8 @@ import type {
   criarConteudoSchema,
   atualizarConteudoSchema,
   criarTagSchema,
+  criarClientProfileItemSchema,
+  atualizarClientProfileItemSchema,
   syncPullSchema,
   syncPushSchema,
 } from '../schemas/index.js';
@@ -26,6 +28,8 @@ export type CriarFolderInput = z.infer<typeof criarFolderSchema>;
 export type CriarConteudoInput = z.infer<typeof criarConteudoSchema>;
 export type AtualizarConteudoInput = z.infer<typeof atualizarConteudoSchema>;
 export type CriarTagInput = z.infer<typeof criarTagSchema>;
+export type CriarClientProfileItemInput = z.infer<typeof criarClientProfileItemSchema>;
+export type AtualizarClientProfileItemInput = z.infer<typeof atualizarClientProfileItemSchema>;
 export type SyncPullInput = z.infer<typeof syncPullSchema>;
 export type SyncPushInput = z.infer<typeof syncPushSchema>;
 
@@ -61,6 +65,17 @@ export interface Workspace {
   updatedAt: string;
 }
 
+export interface ClientProfile {
+  id: string;
+  userId: string;
+  clientId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Folder {
   id: string;
   projectId: string;
@@ -68,6 +83,23 @@ export interface Folder {
   slug: string;
   sortOrder: number;
   createdAt: string;
+}
+
+export interface ClientProfileItem {
+  id: string;
+  userId: string;
+  clientProfileId: string;
+  type: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  body: string;
+  metadata: Record<string, unknown>;
+  isActive: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  tags?: string[];
 }
 
 export interface ConteudoItem {

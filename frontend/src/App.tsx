@@ -5,6 +5,8 @@ import { DashboardPage } from './pages/Dashboard';
 import { WorkspacePage } from './pages/Workspace';
 import { ProjetoPage } from './pages/Projeto';
 import { ApiKeysPage } from './pages/ApiKeys';
+import { ClientProfilesPage } from './pages/ClientProfiles';
+import { ClientProfilePage } from './pages/ClientProfile';
 import { Layout } from './components/Layout';
 
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -27,6 +29,8 @@ export function App() {
         <Route index element={<DashboardPage />} />
         <Route path="workspaces/:workspaceSlug" element={<WorkspacePage />} />
         <Route path="workspaces/:workspaceSlug/projetos/:slug" element={<ProjetoPage />} />
+        <Route path="client-profiles" element={<ClientProfilesPage />} />
+        <Route path="client-profiles/:clientId" element={<ClientProfilePage />} />
         <Route path="api-keys" element={<ApiKeysPage />} />
       </Route>
     </Routes>

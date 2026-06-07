@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq, gte, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { contentItems, contentTags, contentVersions, folders, projects, tags } from '../db/schema.js';
+import { clientProfileItems, clientProfileItemVersions, contentItems, contentTags, contentVersions, folders, projects, tags } from '../db/schema.js';
 import { syncPullSchema, syncPushSchema } from '@myinst/shared';
-import type { ContentType } from '@myinst/shared';
+import type { ClientProfileId, ContentType, SearchScope } from '@myinst/shared';
 import { autenticar } from '../middleware/auth.js';
 import { validar } from '../middleware/validation.js';
 import { obterWorkspaceDefault, resolverWorkspaceDoUsuario } from '../lib/workspaces.js';
+import { obterOuCriarClientProfile } from '../lib/client-profiles.js';
 
 export async function syncRoutes(app: FastifyInstance) {
   app.addHook('preHandler', autenticar);
@@ -31,16 +32,58 @@ export async function syncRoutes(app: FastifyInstance) {
     return projeto ? { workspace, projeto } : null;
   }
 
+  async function resolverClientProfile(userId: string, clientId: ClientProfileId) {
+    const perfil = await obterOuCriarClientProfile(userId, clientId);
+    return { perfil };
+  }
+
   app.post('/pull', { preHandler: [validar(syncPullSchema)] }, async (request, reply) => {
     const { workspace, project, types, tags: tagFilter, since } = request.body as {
+      scope?: SearchScope;
       workspace?: string;
-      project: string;
+      project?: string;
+      clientId?: ClientProfileId;
       types?: string[];
       tags?: string[];
       since?: string;
     };
 
-    const contexto = await resolverProjeto(request.user.id, project, workspace);
+    if (request.body && (request.body as { scope?: SearchScope }).scope === 'global') {
+      const { clientId } = request.body as { clientId: ClientProfileId };
+      const { perfil } = await resolverClientProfile(request.user.id, clientId);
+
+      let items = await db
+        .select()
+        .from(clientProfileItems)
+        .where(and(
+          eq(clientProfileItems.clientProfileId, perfil.id),
+          eq(clientProfileItems.isActive, true),
+          ...(since ? [gte(clientProfileItems.updatedAt, new Date(since))] : []),
+        ));
+
+      if (types && types.length > 0) {
+        items = items.filter((item) => types.includes(item.type));
+      }
+
+      if (tagFilter && tagFilter.length > 0) {
+        items = items.filter((item) => {
+          const tagsDoItem = lerTagsDoMetadata(item.metadata as Record<string, unknown>);
+          return tagFilter.some((tag) => tagsDoItem.includes(tag));
+        });
+      }
+
+      const syncToken = Buffer.from(new Date().toISOString()).toString('base64url');
+
+      return {
+        data: {
+          items: items.map(normalizarGlobalItem),
+          syncToken,
+          serverTime: new Date().toISOString(),
+        },
+      };
+    }
+
+    const contexto = await resolverProjeto(request.user.id, project!, workspace);
     if (!contexto) {
       return reply.status(404).send({
         error: { code: 'NOT_FOUND', message: `Projeto '${project}' não encontrado`, status: 404 },
@@ -106,13 +149,77 @@ export async function syncRoutes(app: FastifyInstance) {
 
   app.post('/push', { preHandler: [validar(syncPushSchema)] }, async (request, reply) => {
     const { workspace, project, items, folderSlug } = request.body as {
+      scope?: SearchScope;
       workspace?: string;
-      project: string;
+      project?: string;
+      clientId?: ClientProfileId;
       folderSlug?: string;
       items: { type: ContentType; title: string; slug: string; body: string; metadata: Record<string, unknown>; tags: string[] }[];
     };
 
-    const contexto = await resolverProjeto(request.user.id, project, workspace);
+    if (request.body && (request.body as { scope?: SearchScope }).scope === 'global') {
+      const { clientId } = request.body as { clientId: ClientProfileId };
+      const { perfil } = await resolverClientProfile(request.user.id, clientId);
+      const criados: string[] = [];
+      const atualizados: string[] = [];
+
+      for (const item of items) {
+        const [existente] = await db
+          .select()
+          .from(clientProfileItems)
+          .where(and(
+            eq(clientProfileItems.clientProfileId, perfil.id),
+            eq(clientProfileItems.type, item.type),
+            eq(clientProfileItems.slug, item.slug),
+          ))
+          .limit(1);
+
+        if (existente) {
+          await db.insert(clientProfileItemVersions).values({
+            clientProfileItemId: existente.id,
+            version: existente.version,
+            body: existente.body,
+            metadata: existente.metadata,
+          });
+
+          await db
+            .update(clientProfileItems)
+            .set({
+              title: item.title,
+              body: item.body,
+              metadata: anexarTagsAoMetadata(item.metadata, item.tags),
+              version: existente.version + 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(clientProfileItems.id, existente.id));
+
+          atualizados.push(item.slug);
+          continue;
+        }
+
+        await db.insert(clientProfileItems).values({
+          userId: request.user.id,
+          clientProfileId: perfil.id,
+          type: item.type,
+          title: item.title,
+          slug: item.slug,
+          body: item.body,
+          metadata: anexarTagsAoMetadata(item.metadata, item.tags),
+        });
+
+        criados.push(item.slug);
+      }
+
+      return {
+        data: {
+          created: criados,
+          updated: atualizados,
+          serverTime: new Date().toISOString(),
+        },
+      };
+    }
+
+    const contexto = await resolverProjeto(request.user.id, project!, workspace);
     if (!contexto) {
       return reply.status(404).send({
         error: { code: 'NOT_FOUND', message: `Projeto '${project}' não encontrado`, status: 404 },
@@ -198,7 +305,40 @@ export async function syncRoutes(app: FastifyInstance) {
   });
 
   app.get('/status', async (request, reply) => {
-    const { workspace, project, since } = request.query as { workspace?: string; project?: string; since?: string };
+    const { workspace, project, since, scope, clientId } = request.query as {
+      workspace?: string;
+      project?: string;
+      since?: string;
+      scope?: SearchScope;
+      clientId?: ClientProfileId;
+    };
+
+    if (scope === 'global') {
+      if (!clientId) {
+        return reply.status(400).send({
+          error: { code: 'MISSING_CLIENT_ID', message: 'Parâmetro clientId é obrigatório para scope=global', status: 400 },
+        });
+      }
+
+      const { perfil } = await resolverClientProfile(request.user.id, clientId);
+      const sinceDate = since ? new Date(since) : new Date(0);
+
+      const alterados = await db
+        .select({ id: clientProfileItems.id, slug: clientProfileItems.slug, type: clientProfileItems.type, updatedAt: clientProfileItems.updatedAt })
+        .from(clientProfileItems)
+        .where(and(
+          eq(clientProfileItems.clientProfileId, perfil.id),
+          gte(clientProfileItems.updatedAt, sinceDate),
+        ));
+
+      return {
+        data: {
+          changedCount: alterados.length,
+          items: alterados,
+          serverTime: new Date().toISOString(),
+        },
+      };
+    }
 
     if (!project) {
       return reply.status(400).send({
@@ -231,6 +371,29 @@ export async function syncRoutes(app: FastifyInstance) {
       },
     };
   });
+}
+
+const CAMPO_TAGS_METADATA = 'myinstTags';
+
+function anexarTagsAoMetadata(metadata: Record<string, unknown>, tags: string[]) {
+  return {
+    ...metadata,
+    [CAMPO_TAGS_METADATA]: tags,
+  };
+}
+
+function lerTagsDoMetadata(metadata: Record<string, unknown>) {
+  const tags = metadata[CAMPO_TAGS_METADATA];
+  return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === 'string') : [];
+}
+
+function normalizarGlobalItem(item: typeof clientProfileItems.$inferSelect) {
+  const metadata = item.metadata as Record<string, unknown>;
+  return {
+    ...item,
+    metadata,
+    tags: lerTagsDoMetadata(metadata),
+  };
 }
 
 async function vincularTags(userId: string, workspaceId: string, contentId: string, tagNames: string[]) {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CONTENT_TYPES, TAG_CATEGORIES, API_KEY_SCOPES } from '../constants.js';
+import { CONTENT_TYPES, TAG_CATEGORIES, API_KEY_SCOPES, CLIENT_PROFILE_IDS, SEARCH_SCOPES } from '../constants.js';
 
 export const registrarUsuarioSchema = z.object({
   email: z.string().email(),
@@ -33,6 +33,21 @@ export const criarProjetoSchema = z.object({
 });
 
 export const atualizarProjetoSchema = criarProjetoSchema.partial();
+
+export const clientProfileIdSchema = z.enum(CLIENT_PROFILE_IDS);
+
+export const criarClientProfileItemSchema = z.object({
+  type: z.enum(CONTENT_TYPES),
+  title: z.string().min(1).max(200),
+  slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/),
+  description: z.string().max(500).optional(),
+  body: z.string().min(1),
+  metadata: z.record(z.unknown()).default({}),
+  tags: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true),
+});
+
+export const atualizarClientProfileItemSchema = criarClientProfileItemSchema.partial();
 
 export const criarFolderSchema = z.object({
   name: z.string().min(1).max(100),
@@ -69,16 +84,40 @@ export const criarPerfilSchema = z.object({
 export const atualizarPerfilSchema = criarPerfilSchema.partial();
 
 export const syncPullSchema = z.object({
+  scope: z.enum(SEARCH_SCOPES).optional(),
   workspace: z.string().optional(),
-  project: z.string(),
+  project: z.string().optional(),
+  clientId: clientProfileIdSchema.optional(),
   types: z.array(z.enum(CONTENT_TYPES)).optional(),
   tags: z.array(z.string()).optional(),
   since: z.string().datetime().optional(),
+}).superRefine((value, ctx) => {
+  if (value.scope === 'global') {
+    if (!value.clientId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['clientId'],
+        message: 'clientId é obrigatório quando scope=global',
+      });
+    }
+
+    return;
+  }
+
+  if (!value.project) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['project'],
+      message: 'project é obrigatório quando scope não é global',
+    });
+  }
 });
 
 export const syncPushSchema = z.object({
+  scope: z.enum(SEARCH_SCOPES).optional(),
   workspace: z.string().optional(),
-  project: z.string(),
+  project: z.string().optional(),
+  clientId: clientProfileIdSchema.optional(),
   folderSlug: z.string().regex(/^[a-z0-9-]+$/).optional(),
   items: z.array(z.object({
     type: z.enum(CONTENT_TYPES),
@@ -88,4 +127,24 @@ export const syncPushSchema = z.object({
     metadata: z.record(z.unknown()).default({}),
     tags: z.array(z.string()).default([]),
   })),
+}).superRefine((value, ctx) => {
+  if (value.scope === 'global') {
+    if (!value.clientId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['clientId'],
+        message: 'clientId é obrigatório quando scope=global',
+      });
+    }
+
+    return;
+  }
+
+  if (!value.project) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['project'],
+      message: 'project é obrigatório quando scope não é global',
+    });
+  }
 });

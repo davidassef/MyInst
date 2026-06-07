@@ -82,6 +82,22 @@ export const api = {
     deletar: (workspaceSlug: string) =>
       request<void>(`/workspaces/${workspaceSlug}`, { method: 'DELETE' }),
   },
+  clientProfiles: {
+    listar: () => request<any[]>('/client-profiles'),
+    obter: (clientId: string) => request<any>(`/client-profiles/${clientId}`),
+    listarItens: (clientId: string, params?: { type?: string; active?: boolean }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.type) searchParams.set('type', params.type);
+      if (params?.active !== undefined) searchParams.set('active', String(params.active));
+      return request<any[]>(`/client-profiles/${clientId}/items${searchParams.toString() ? `?${searchParams}` : ''}`);
+    },
+    criarItem: (clientId: string, body: any) =>
+      request<any>(`/client-profiles/${clientId}/items`, { method: 'POST', body: JSON.stringify(body) }),
+    atualizarItem: (clientId: string, itemSlug: string, body: any) =>
+      request<any>(`/client-profiles/${clientId}/items/${itemSlug}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    deletarItem: (clientId: string, itemSlug: string) =>
+      request<void>(`/client-profiles/${clientId}/items/${itemSlug}`, { method: 'DELETE' }),
+  },
   projetos: {
     listar: (workspaceSlug?: string) =>
       workspaceSlug
@@ -132,11 +148,13 @@ export const api = {
       request<void>(`/workspaces/${workspaceSlug}/projects/${projetoSlug}/folders/${folderId}`, { method: 'DELETE' }),
   },
   busca: {
-    pesquisar: (params: { q: string; workspace?: string; project?: string; type?: string }) => {
+    pesquisar: (params: { q: string; workspace?: string; project?: string; type?: string; scope?: string; clientId?: string }) => {
       const searchParams = new URLSearchParams({ q: params.q });
       if (params.workspace) searchParams.set('workspace', params.workspace);
       if (params.project) searchParams.set('project', params.project);
       if (params.type) searchParams.set('type', params.type);
+      if (params.scope) searchParams.set('scope', params.scope);
+      if (params.clientId) searchParams.set('clientId', params.clientId);
       return request<any[]>(`/search?${searchParams.toString()}`);
     },
   },

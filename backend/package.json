@@ -8,6 +8,7 @@
     "lint": "tsc --noEmit",
     "start": "node dist/index.js",
     "test": "tsx scripts/test.ts",
+    "migrate:client-profiles": "tsx scripts/migrate-client-profiles.ts",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"

@@ -97,6 +97,21 @@ export const projects = pgTable('projects', {
   index('projects_workspace_idx').on(table.workspaceId),
 ]);
 
+export const clientProfiles = pgTable('client_profiles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clientId: varchar('client_id', { length: 50 }).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  slug: varchar('slug', { length: 100 }).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('client_profiles_user_client_idx').on(table.userId, table.clientId),
+  uniqueIndex('client_profiles_user_slug_idx').on(table.userId, table.slug),
+  index('client_profiles_user_idx').on(table.userId),
+]);
+
 export const folders = pgTable('folders', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
@@ -133,6 +148,30 @@ export const contentItems = pgTable('content_items', {
   ),
 ]);
 
+export const clientProfileItems = pgTable('client_profile_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clientProfileId: uuid('client_profile_id').notNull().references(() => clientProfiles.id, { onDelete: 'cascade' }),
+  type: contentTypeEnum('type').notNull(),
+  title: varchar('title', { length: 200 }).notNull(),
+  slug: varchar('slug', { length: 200 }).notNull(),
+  description: text('description'),
+  body: text('body').notNull(),
+  metadata: jsonb('metadata').default({}).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  version: integer('version').default(1).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('client_profile_items_profile_type_slug_idx').on(table.clientProfileId, table.type, table.slug),
+  index('client_profile_items_user_profile_idx').on(table.userId, table.clientProfileId),
+  index('client_profile_items_type_idx').on(table.type),
+  index('client_profile_items_search_idx').using(
+    'gin',
+    sql`to_tsvector('portuguese', coalesce(${table.title}, '') || ' ' || coalesce(${table.body}, '') || ' ' || coalesce(${table.description}, ''))`,
+  ),
+]);
+
 export const tags = pgTable('tags', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -161,6 +200,17 @@ export const contentVersions = pgTable('content_versions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('content_versions_content_version_idx').on(table.contentId, table.version),
+]);
+
+export const clientProfileItemVersions = pgTable('client_profile_item_versions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientProfileItemId: uuid('client_profile_item_id').notNull().references(() => clientProfileItems.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  body: text('body').notNull(),
+  metadata: jsonb('metadata').default({}).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('client_profile_item_versions_item_version_idx').on(table.clientProfileItemId, table.version),
 ]);
 
 export const modelProfiles = pgTable('model_profiles', {

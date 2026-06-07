@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Boxes, ChevronRight, Home, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
+import { Boxes, ChevronRight, Home, KeyRound, LogOut, ShieldCheck, Waypoints } from 'lucide-react';
 import { limparToken } from '@/lib/api';
 import { useBrand } from '@/components/BrandProvider';
 
@@ -39,21 +39,39 @@ export function Layout() {
               </div>
             </div>
 
-            <nav className="mt-6 flex-1 space-y-2">
+            <nav className="mt-6 flex-1 space-y-5">
+              <div className="space-y-2">
+                <p className="px-2 text-[11px] uppercase tracking-[0.24em] text-slate-600">Vault</p>
+                <NavItem
+                  to="/"
+                  label="Workspaces"
+                  hint="Contextos e projetos"
+                  icon={<Home size={18} />}
+                  active={location.pathname === '/' || location.pathname.startsWith('/workspaces/')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="px-2 text-[11px] uppercase tracking-[0.24em] text-slate-600">Client Profiles</p>
+                <NavItem
+                  to="/client-profiles"
+                  label="Globais"
+                  hint="Configs por cliente"
+                  icon={<Waypoints size={18} />}
+                  active={location.pathname.startsWith('/client-profiles')}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="px-2 text-[11px] uppercase tracking-[0.24em] text-slate-600">Conta</p>
               <NavItem
-                to="/"
-                label="Workspaces"
-                hint="Contextos e projetos"
-                icon={<Home size={18} />}
-                active={location.pathname === '/'}
-              />
-              <NavItem
-                to="/api-keys"
-                label="API Keys"
-                hint="Acesso da conta"
-                icon={<KeyRound size={18} />}
-                active={location.pathname.startsWith('/api-keys')}
-              />
+                  to="/api-keys"
+                  label="API Keys"
+                  hint="Acesso da conta"
+                  icon={<KeyRound size={18} />}
+                  active={location.pathname.startsWith('/api-keys')}
+                />
+              </div>
             </nav>
 
             <div className="mt-6 rounded-2xl border border-white/8 bg-black/20 p-4">

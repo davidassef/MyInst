@@ -132,7 +132,6 @@ server.tool(
     targetFormat: z.enum(FORMATOS_PULL).describe('myinst materializa o formato canônico; native escreve no formato do cliente').optional(),
   },
   async ({ workspace, project, types, tags, model, dryRun, targetDir, conflictStrategy, clients, scope, targetFormat }) => {
-    const slug = project || 'default';
     const dir = targetDir || process.cwd();
     const strategy: ConflictStrategy = conflictStrategy || 'overwrite';
     const formato: FormatoPull = targetFormat || 'myinst';
@@ -148,23 +147,35 @@ server.tool(
       }
     }
 
-    const resultado = await client.pull({
+    const carregamento = await carregarItensParaPull({
+      dir,
       workspace,
-      project: slug,
+      project,
       types,
-      tags: tagsFinais.length > 0 ? tagsFinais : undefined,
+      tags: tagsFinais,
+      scope,
+      clients,
     });
+    if (carregamento.selecaoNecessaria) {
+      return respostaSelecaoNecessaria(dir, scope, carregamento.availableTargets, 'pull', 'targetFormat: "native"');
+    }
+
+    if (carregamento.items.length === 0) {
+      return respostaTexto('Nenhum item encontrado para o escopo solicitado.');
+    }
 
     if (formato === 'myinst') {
       if (dryRun) {
         return respostaTexto([
-          montarPreviewPull(resultado.items),
+          montarResumoPullOrigem(carregamento),
+          '',
+          montarPreviewPull(carregamento.items),
           '',
           `.claude/MYINST.md também seria ${await preverAcaoGuiaMyInst(dir, strategy)}.`,
         ].join('\n'));
       }
 
-      const aplicados = await aplicarConteudo(resultado.items, dir, strategy);
+      const aplicados = await aplicarConteudo(carregamento.items, dir, strategy);
       const criados = aplicados.filter((a) => a.status === 'created');
       const sobrescritos = aplicados.filter((a) => a.status === 'overwritten');
       const prefixados = aplicados.filter((a) => a.status === 'prefixed');
@@ -184,32 +195,29 @@ server.tool(
       return respostaTexto(linhas.join('\n'));
     }
 
-    const resolucao = await resolverSelecaoSync(dir, scope, clients);
-    if (resolucao.requiresClientSelection) {
-      return respostaSelecaoNecessaria(dir, scope, resolucao.availableTargets, 'pull', 'targetFormat: "native"');
-    }
-
-    if (resolucao.selectedTargets.length === 0) {
+    if (carregamento.targets.length === 0) {
       return respostaTexto(montarMensagemSemClientes(dir, scope, clients));
     }
 
     const exportacao = await exportarParaClientesNativos(
       dir,
-      normalizarItensVault(resultado.items),
+      normalizarItensVault(carregamento.items),
       scope,
-      [...new Set(resolucao.selectedTargets.map((target) => target.clientId))],
+      [...new Set(carregamento.targets.map((target) => target.clientId))],
     );
 
       if (dryRun) {
       return respostaTexto([
-        `[DRY RUN] Exportação nativa a partir do projeto "${slug}" para ${dir}`,
+        `[DRY RUN] Exportação nativa para ${dir}`,
+        montarResumoPullOrigem(carregamento),
         montarResumoTargets(exportacao.targets),
-        montarResumoDryRunNative(exportacao.targets, resultado.items),
+        montarResumoDryRunNative(exportacao.targets, carregamento.items),
       ].join('\n\n'));
     }
 
     return respostaTexto([
-      `Pull nativo concluído para projeto "${slug}" em ${dir}.`,
+      `Pull nativo concluído em ${dir}.`,
+      montarResumoPullOrigem(carregamento),
       montarResumoTargets(exportacao.targets),
       montarResumoEscritaNativa(exportacao.results),
     ].join('\n\n'));
@@ -224,9 +232,11 @@ server.tool(
     project: z.string().describe('Slug do projeto').optional(),
     query: z.string().describe('Texto para buscar no título ou corpo'),
     type: z.string().describe('Filtrar por tipo de conteúdo').optional(),
+    scope: z.enum(SCOPES_SYNC).describe('Escopo da busca: project, global ou all').optional(),
+    clientId: z.string().describe('Client profile global específico para a busca').optional(),
   },
-  async ({ workspace, project, query, type }) => {
-    const filtrados = await client.buscarConteudo({ query, workspace, project, type });
+  async ({ workspace, project, query, type, scope, clientId }) => {
+    const filtrados = await client.buscarConteudo({ query, workspace, project, type, scope, clientId });
 
     return respostaTexto(
       filtrados.length === 0
@@ -238,6 +248,8 @@ server.tool(
           tags: item.tags,
           project: item.project_slug,
           workspace: item.workspace_slug,
+          sourceScope: item.source_scope,
+          clientId: item.client_id,
         })), null, 2)}`,
     );
   },
@@ -250,8 +262,19 @@ server.tool(
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto').optional(),
     since: z.string().describe('Data ISO para verificar mudanças desde').optional(),
+    scope: z.enum(SCOPES_SYNC).describe('Escopo da verificação: project, global ou all').optional(),
+    clientId: z.string().describe('Client profile global específico para status').optional(),
   },
-  async ({ workspace, project, since }) => {
+  async ({ workspace, project, since, scope, clientId }) => {
+    if (scope === 'global') {
+      if (!clientId) {
+        return respostaTexto('clientId é obrigatório para myinst_status com scope=global');
+      }
+
+      const statusGlobal = await client.statusGlobal(clientId, since);
+      return respostaTexto(`${statusGlobal.changedCount} item(ns) globais alterado(s) em ${clientId} desde ${since || 'sempre'}:\n${JSON.stringify(statusGlobal.items, null, 2)}`);
+    }
+
     const slug = project || 'default';
     const status = await client.status(slug, since, workspace);
 
@@ -283,16 +306,6 @@ server.tool(
       return respostaTexto(montarMensagemSemClientes(dir, scope, clients));
     }
 
-    const projetoDestino = await resolverProjetoDestinoSync({
-      client,
-      workspace,
-      project,
-      sourceDir: dir,
-      selectedTargets: resolucao.selectedTargets,
-      dryRun,
-    });
-    const slug = projetoDestino.slug;
-
     const importacao = await importarTargetsDetectados(
       dir,
       scope,
@@ -300,10 +313,8 @@ server.tool(
     );
 
     const itensTratados = separarItensSincronizaveis(importacao.items, types);
-    let itens = itensTratados.sincronizaveis;
-    if (types && types.length > 0) {
-      itens = itens.filter((item) => types.includes(item.type));
-    }
+    const gruposEscopo = separarItensPorEscopo(itensTratados.sincronizaveis);
+    const itens = [...gruposEscopo.projectItems, ...gruposEscopo.globalItems];
 
     if (itens.length === 0) {
       return respostaTexto(montarMensagemSemItensSincronizaveis({
@@ -314,13 +325,25 @@ server.tool(
       }));
     }
 
+    const projetoDestino = gruposEscopo.projectItems.length > 0
+      ? await resolverProjetoDestinoSync({
+          client,
+          workspace,
+          project,
+          sourceDir: dir,
+          selectedTargets: resolucao.selectedTargets.filter((target) => target.scope === 'project'),
+          dryRun,
+        })
+      : null;
+
     if (dryRun) {
       const preview = itens.map((item) => ({ type: item.type, title: item.title, slug: item.slug }));
       return respostaTexto([
         `[DRY RUN] Origem detectada em ${dir}`,
-        montarResumoProjetoDestino(projetoDestino),
+        ...(projetoDestino ? [montarResumoProjetoDestino(projetoDestino)] : []),
         montarResumoTargets(importacao.targets),
         `Tipos encontrados: ${montarResumoTipos(itens)}`,
+        montarResumoEscoposSync(gruposEscopo),
         montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
         '',
         `${itens.length} item(ns) seriam enviados:`,
@@ -328,16 +351,30 @@ server.tool(
       ].filter(Boolean).join('\n'));
     }
 
-    const resultado = await client.push({ workspace, project: slug, items: itens });
-    return respostaTexto([
-      `Push concluído para projeto "${slug}" a partir de ${dir}:`,
-      montarResumoProjetoDestino(projetoDestino),
+    const linhas = [
+      `Push concluído a partir de ${dir}:`,
+      ...(projetoDestino ? [montarResumoProjetoDestino(projetoDestino)] : []),
       montarResumoTargets(importacao.targets),
       `Tipos sincronizados: ${montarResumoTipos(itens)}`,
+      montarResumoEscoposSync(gruposEscopo),
       montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
-      `  - Criados: ${resultado.created.length} (${resultado.created.join(', ') || 'nenhum'})`,
-      `  - Atualizados: ${resultado.updated.length} (${resultado.updated.join(', ') || 'nenhum'})`,
-    ].filter(Boolean).join('\n'));
+    ].filter(Boolean);
+
+    if (gruposEscopo.projectItems.length > 0 && projetoDestino) {
+      const resultadoProjeto = await client.push({ workspace, project: projetoDestino.slug, items: gruposEscopo.projectItems });
+      linhas.push(
+        `  - Projeto ${projetoDestino.slug}: criados=${resultadoProjeto.created.length}, atualizados=${resultadoProjeto.updated.length}`,
+      );
+    }
+
+    for (const [clientId, itensGlobais] of Object.entries(gruposEscopo.globalByClient)) {
+      const resultadoGlobal = await client.push({ scope: 'global', clientId, items: itensGlobais });
+      linhas.push(
+        `  - Global ${clientId}: criados=${resultadoGlobal.created.length}, atualizados=${resultadoGlobal.updated.length}`,
+      );
+    }
+
+    return respostaTexto(linhas.join('\n'));
   },
 );
 
@@ -365,16 +402,6 @@ server.tool(
       return respostaTexto(montarMensagemSemClientes(sourceDir, scope, clients));
     }
 
-    const projetoDestino = await resolverProjetoDestinoSync({
-      client,
-      workspace,
-      project,
-      sourceDir,
-      selectedTargets: resolucao.selectedTargets,
-      dryRun,
-    });
-    const slug = projetoDestino.slug;
-
     const importacao = await importarTargetsDetectados(
       sourceDir,
       scope,
@@ -391,41 +418,69 @@ server.tool(
       }));
     }
 
+    const gruposEscopo = separarItensPorEscopo(itensTratados.sincronizaveis);
+    const projetoDestino = gruposEscopo.projectItems.length > 0
+      ? await resolverProjetoDestinoSync({
+          client,
+          workspace,
+          project,
+          sourceDir,
+          selectedTargets: resolucao.selectedTargets.filter((target) => target.scope === 'project'),
+          dryRun,
+        })
+      : null;
+    const slug = projetoDestino?.slug;
+
     const nomeRepo = folderName || detectarNomeRepositorio(sourceDir);
-    const grupos = agruparImportacaoPorFolder(importacao.targets, itensTratados.sincronizaveis, nomeRepo);
+    const gruposProjeto = agruparImportacaoPorFolder(
+      importacao.targets.filter((target) => target.scope === 'project'),
+      gruposEscopo.projectItems,
+      nomeRepo,
+    );
 
     if (dryRun) {
       return respostaTexto([
         `[DRY RUN] Origem detectada em ${sourceDir}`,
-        montarResumoProjetoDestino(projetoDestino),
+        ...(projetoDestino ? [montarResumoProjetoDestino(projetoDestino)] : []),
         montarResumoTargets(importacao.targets),
         `Tipos encontrados: ${montarResumoTipos(itensTratados.sincronizaveis)}`,
+        montarResumoEscoposSync(gruposEscopo),
         montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
         '',
         'Pastas de destino previstas:',
-        JSON.stringify(grupos.map((grupo) => ({
-          folderSlug: grupo.folderSlug,
-          clientId: grupo.clientId,
-          scope: grupo.scope,
-          itens: grupo.items.map((item) => ({ type: item.type, slug: item.slug })),
-        })), null, 2),
+        JSON.stringify([
+          ...gruposProjeto.map((grupo) => ({
+            folderSlug: grupo.folderSlug,
+            clientId: grupo.clientId,
+            scope: grupo.scope,
+            itens: grupo.items.map((item) => ({ type: item.type, slug: item.slug })),
+          })),
+          ...Object.entries(gruposEscopo.globalByClient).map(([clientId, itensGlobais]) => ({
+            clientId,
+            scope: 'global',
+            itens: itensGlobais.map((item) => ({ type: item.type, slug: item.slug })),
+          })),
+        ], null, 2),
       ].filter(Boolean).join('\n'));
     }
 
-    const pastasExistentes = await client.listarPastas(slug, workspace);
-    const existentes = await client.pull({ workspace, project: slug });
-    const slugsExistentes = new Set(existentes.items.map((item) => `${item.type}:${item.slug}`));
     const linhas = [
-      `Import concluído para projeto "${slug}" a partir de ${sourceDir}:`,
-      montarResumoProjetoDestino(projetoDestino),
+      `Import concluído a partir de ${sourceDir}:`,
+      ...(projetoDestino ? [montarResumoProjetoDestino(projetoDestino)] : []),
       montarResumoTargets(importacao.targets),
+      montarResumoEscoposSync(gruposEscopo),
     ];
 
     if (itensTratados.ignoradosCompartilhados.length > 0) {
       linhas.push(montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados));
     }
 
-    for (const grupo of grupos) {
+    if (slug) {
+      const pastasExistentes = await client.listarPastas(slug, workspace);
+      const existentes = await client.pull({ workspace, project: slug });
+      const slugsExistentes = new Set(existentes.items.map((item) => `${item.type}:${item.slug}`));
+
+      for (const grupo of gruposProjeto) {
       if (!pastasExistentes.some((pasta) => pasta.slug === grupo.folderSlug)) {
         await client.criarPasta(slug, { name: formatarNomePasta(grupo.folderSlug), slug: grupo.folderSlug }, workspace);
         pastasExistentes.push({
@@ -467,6 +522,27 @@ server.tool(
       linhas.push(
         `  - ${grupo.folderSlug}: ${paraEnviar.length} item(ns) importados (${montarResumoTipos(paraEnviar)})`,
         `    criados=${resultado.created.length}, atualizados=${resultado.updated.length}, ignorados=${ignorados.length}`,
+      );
+      }
+    }
+
+    for (const [clientId, itensGlobais] of Object.entries(gruposEscopo.globalByClient)) {
+      const existentesGlobais = await client.pull({ scope: 'global', clientId });
+      const slugsExistentesGlobais = new Set(existentesGlobais.items.map((item) => `${item.type}:${item.slug}`));
+      const paraEnviar = overwrite
+        ? itensGlobais
+        : itensGlobais.filter((item) => !slugsExistentesGlobais.has(`${item.type}:${item.slug}`));
+      const ignorados = itensGlobais.length - paraEnviar.length;
+
+      if (paraEnviar.length === 0) {
+        linhas.push(`  - ${clientId} global: nenhum item novo (${ignorados} conflito(s))`);
+        continue;
+      }
+
+      const resultado = await client.push({ scope: 'global', clientId, items: paraEnviar });
+      linhas.push(
+        `  - ${clientId} global: ${paraEnviar.length} item(ns) importados (${montarResumoTipos(paraEnviar)})`,
+        `    criados=${resultado.created.length}, atualizados=${resultado.updated.length}, ignorados=${ignorados}`,
       );
     }
 
@@ -659,6 +735,98 @@ function formatarNomePasta(folderSlug: string) {
     .join(' ');
 }
 
+async function carregarItensParaPull({
+  dir,
+  workspace,
+  project,
+  types,
+  tags,
+  scope,
+  clients,
+}: {
+  dir: string;
+  workspace?: string;
+  project?: string;
+  types?: string[];
+  tags?: string[];
+  scope?: EscopoSync;
+  clients?: string[];
+}) {
+  const scopeFinal = scope || 'project';
+  const items: Array<{
+    id: string;
+    type: string;
+    slug: string;
+    title: string;
+    description: string | null;
+    body: string;
+    metadata: Record<string, unknown>;
+    tags: string[];
+  }> = [];
+  const availableTargets = await listarSyncTargets(dir, scopeFinal, clients);
+  const requiresClientSelection = !clients?.length && new Set(availableTargets.map((target) => target.clientId)).size > 1 && scopeFinal !== 'project';
+
+  if (requiresClientSelection) {
+    return {
+      items: [],
+      targets: [],
+      selecaoNecessaria: true,
+      availableTargets,
+      sources: [] as string[],
+    };
+  }
+
+  if (scopeFinal !== 'global') {
+    const resultadoProjeto = await client.pull({
+      workspace,
+      project: project || 'default',
+      types,
+      tags: tags?.length ? tags : undefined,
+    });
+    items.push(...resultadoProjeto.items.map((item) => ({
+      ...item,
+      id: item.id,
+      description: item.description ?? null,
+    })));
+  }
+
+  const clientIdsGlobais = clients?.length
+    ? clients
+    : availableTargets.filter((target) => target.scope === 'global').map((target) => target.clientId);
+
+  if (scopeFinal !== 'project') {
+    for (const clientId of [...new Set(clientIdsGlobais)]) {
+      const resultadoGlobal = await client.pull({
+        scope: 'global',
+        clientId,
+        types,
+        tags: tags?.length ? tags : undefined,
+      });
+      items.push(...resultadoGlobal.items.map((item) => ({
+        ...item,
+        id: item.id || `${clientId}:${item.type}:${item.slug}`,
+        description: item.description ?? null,
+        metadata: {
+          ...item.metadata,
+          myinstClientId: clientId,
+          myinstSourceScope: 'global',
+        },
+      })));
+    }
+  }
+
+  return {
+    items,
+    targets: availableTargets.filter((target) => scopeFinal === 'all' || target.scope === scopeFinal),
+    selecaoNecessaria: false,
+    availableTargets,
+    sources: [
+      ...(scopeFinal !== 'global' ? [`projeto:${project || 'default'}`] : []),
+      ...(scopeFinal !== 'project' ? [...new Set(clientIdsGlobais)].map((clientId) => `global:${clientId}`) : []),
+    ],
+  };
+}
+
 async function resolverProjetoDestinoSync({
   client,
   workspace,
@@ -770,6 +938,53 @@ function separarItensSincronizaveis(
     sincronizaveis,
     ignoradosCompartilhados,
   };
+}
+
+function separarItensPorEscopo(items: ItemSincronizavel[]) {
+  const projectItems: ItemSincronizavel[] = [];
+  const globalItems: ItemSincronizavel[] = [];
+  const globalByClient: Record<string, ItemSincronizavel[]> = {};
+
+  for (const item of items) {
+    const escopo = item.metadata?.myinstSourceScope;
+    const clientId = typeof item.metadata?.myinstClientId === 'string' ? item.metadata.myinstClientId : 'unknown';
+
+    if (escopo === 'global') {
+      globalItems.push(item);
+      globalByClient[clientId] ||= [];
+      globalByClient[clientId].push(item);
+      continue;
+    }
+
+    projectItems.push(item);
+  }
+
+  return {
+    projectItems,
+    globalItems,
+    globalByClient,
+  };
+}
+
+function montarResumoEscoposSync(grupos: {
+  projectItems: ItemSincronizavel[];
+  globalItems: ItemSincronizavel[];
+  globalByClient: Record<string, ItemSincronizavel[]>;
+}) {
+  const linhas = [
+    `Escopo projeto: ${grupos.projectItems.length} item(ns)`,
+    `Escopo global: ${grupos.globalItems.length} item(ns)`,
+  ];
+
+  for (const [clientId, itens] of Object.entries(grupos.globalByClient)) {
+    linhas.push(`  - ${clientId}: ${itens.length} item(ns) globais`);
+  }
+
+  return linhas.join('\n');
+}
+
+function montarResumoPullOrigem(carregamento: { sources: string[] }) {
+  return `Origens do pull: ${carregamento.sources.join(', ')}`;
 }
 
 function montarResumoIgnoradosCompartilhados(itens: ItemSincronizavel[]) {

@@ -8,8 +8,10 @@ interface PushItem {
 }
 
 interface PushParams {
+  scope?: 'project' | 'global' | 'all';
   workspace?: string;
-  project: string;
+  project?: string;
+  clientId?: string;
   folderSlug?: string;
   items: PushItem[];
 }
@@ -21,8 +23,10 @@ interface PushResponse {
 }
 
 interface PullParams {
+  scope?: 'project' | 'global' | 'all';
   workspace?: string;
-  project: string;
+  project?: string;
+  clientId?: string;
   types?: string[];
   tags?: string[];
   since?: string;
@@ -33,7 +37,7 @@ interface ConteudoItem {
   type: string;
   title: string;
   slug: string;
-  description: string | null;
+  description?: string | null;
   body: string;
   metadata: Record<string, unknown>;
   tags: string[];
@@ -52,8 +56,10 @@ interface StatusResponse {
 }
 
 interface SearchResultItem extends ConteudoItem {
-  project_slug: string;
+  project_slug?: string | null;
   workspace_slug?: string;
+  source_scope?: 'project' | 'global';
+  client_id?: string | null;
   rank: number;
 }
 
@@ -79,6 +85,15 @@ interface PerfilModelo {
   name: string;
   modelPattern: string;
   tags: string[];
+}
+
+interface ClientProfile {
+  id: string;
+  userId: string;
+  clientId: string;
+  name: string;
+  slug: string;
+  description: string | null;
 }
 
 export class MyInstClient {
@@ -123,6 +138,10 @@ export class MyInstClient {
     return this.request<Projeto[]>(`/workspaces/${encodeURIComponent(workspace)}/projects`);
   }
 
+  async listarClientProfiles(): Promise<ClientProfile[]> {
+    return this.request<ClientProfile[]>('/client-profiles');
+  }
+
   async criarProjeto(
     body: { name: string; slug: string; description?: string },
     workspace?: string,
@@ -154,6 +173,12 @@ export class MyInstClient {
     return this.request<StatusResponse>(`/sync/status?${query}`);
   }
 
+  async statusGlobal(clientId: string, since?: string): Promise<StatusResponse> {
+    const query = new URLSearchParams({ scope: 'global', clientId });
+    if (since) query.set('since', since);
+    return this.request<StatusResponse>(`/sync/status?${query}`);
+  }
+
   async push(params: PushParams): Promise<PushResponse> {
     return this.request<PushResponse>('/sync/push', {
       method: 'POST',
@@ -161,13 +186,30 @@ export class MyInstClient {
     });
   }
 
-  async buscarConteudo(params: { query: string; workspace?: string; project?: string; type?: string }): Promise<SearchResultItem[]> {
+  async buscarConteudo(params: {
+    query: string;
+    workspace?: string;
+    project?: string;
+    type?: string;
+    scope?: 'project' | 'global' | 'all';
+    clientId?: string;
+  }): Promise<SearchResultItem[]> {
     const searchParams = new URLSearchParams({ q: params.query });
     if (params.workspace) searchParams.set('workspace', params.workspace);
     if (params.project) searchParams.set('project', params.project);
     if (params.type) searchParams.set('type', params.type);
+    if (params.scope) searchParams.set('scope', params.scope);
+    if (params.clientId) searchParams.set('clientId', params.clientId);
 
     return this.request<SearchResultItem[]>(`/search?${searchParams.toString()}`);
+  }
+
+  async listarItensClientProfile(clientId: string, params?: { type?: string; active?: boolean }) {
+    const searchParams = new URLSearchParams();
+    if (params?.type) searchParams.set('type', params.type);
+    if (params?.active !== undefined) searchParams.set('active', String(params.active));
+    const query = searchParams.toString();
+    return this.request<ConteudoItem[]>(`/client-profiles/${encodeURIComponent(clientId)}/items${query ? `?${query}` : ''}`);
   }
 
   async matchProfile(model: string, workspace?: string): Promise<PerfilModelo | null> {

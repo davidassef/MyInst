@@ -169,7 +169,14 @@ export async function importarTargetsDetectados(
     const lidos = await adapter.ler(target);
 
     for (const item of lidos) {
-      items.set(`${target.clientId}:${target.scope}:${item.type}:${item.slug}`, item);
+      items.set(`${target.clientId}:${target.scope}:${item.type}:${item.slug}`, {
+        ...item,
+        metadata: {
+          ...item.metadata,
+          myinstClientId: target.clientId,
+          myinstSourceScope: target.scope,
+        },
+      });
     }
   }
 

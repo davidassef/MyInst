@@ -19,3 +19,19 @@ export const API_KEY_PREFIX = 'myinst_';
 
 export const API_KEY_SCOPES = ['read', 'write'] as const;
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
+
+export const CLIENT_PROFILE_IDS = [
+  'codex',
+  'claude',
+  'cursor',
+  'gemini',
+  'opencode',
+  'qwen',
+  'aider',
+  'antigravity',
+] as const;
+
+export type ClientProfileId = (typeof CLIENT_PROFILE_IDS)[number];
+
+export const SEARCH_SCOPES = ['project', 'global', 'all'] as const;
+export type SearchScope = (typeof SEARCH_SCOPES)[number];
