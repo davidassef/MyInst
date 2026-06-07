@@ -11,7 +11,7 @@ npm install -g @myinst/mcp-server
 ## Uso
 
 ```bash
-MYINST_API_KEY=myinst_xxx MYINST_SERVER=https://api.seudominio.com myinst-mcp
+MYINST_API_KEY=myinst_xxx MYINST_SERVER=https://api-myinst.lotoscore.com.br myinst-mcp
 ```
 
 ## Fluxo padrao

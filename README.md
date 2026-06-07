@@ -176,7 +176,7 @@ Exemplo de configuracao para clientes MCP:
       "command": "myinst-mcp",
       "env": {
         "MYINST_API_KEY": "myinst_sua_key_aqui",
-        "MYINST_SERVER": "http://localhost:3000"
+        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
       }
     }
   }

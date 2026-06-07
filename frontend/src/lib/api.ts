@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_MYINST_API_BASE?.trim() || '/api/v1';
+const API_BASE = import.meta.env.VITE_MYINST_API_BASE?.trim();
 
 function normalizarBaseApi(base: string): string {
   let baseNormalizada = base.replace(/\/+$/, '');
@@ -10,7 +10,8 @@ function normalizarBaseApi(base: string): string {
   return baseNormalizada;
 }
 
-const BASE_URL = `${normalizarBaseApi(API_BASE)}/api/v1`;
+export const API_SERVER_BASE = API_BASE ? normalizarBaseApi(API_BASE) : 'http://localhost:3000';
+const BASE_URL = API_BASE ? `${API_SERVER_BASE}/api/v1` : '/api/v1';
 
 function obterToken(): string | null {
   return localStorage.getItem('myinst_token');

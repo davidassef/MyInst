@@ -14,6 +14,17 @@ O pacote expõe o binário `myinst-mcp`.
 
 Adicione ao seu arquivo de configuração MCP:
 
+### Codex (`C:\Users\seu-usuario\.codex\config.toml`)
+
+```toml
+[mcp_servers.myinst]
+command = "myinst-mcp"
+
+[mcp_servers.myinst.env]
+MYINST_API_KEY = "myinst_sua_key_aqui"
+MYINST_SERVER = "https://api-myinst.lotoscore.com.br"
+```
+
 ### Claude Code (`.mcp.json`)
 
 ```json
@@ -23,7 +34,7 @@ Adicione ao seu arquivo de configuração MCP:
       "command": "myinst-mcp",
       "env": {
         "MYINST_API_KEY": "myinst_sua_key_aqui",
-        "MYINST_SERVER": "http://localhost:3000"
+        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
       }
     }
   }
@@ -39,7 +50,7 @@ Adicione nas configurações do MCP da extensão com os mesmos parâmetros.
 | Variável | Obrigatória | Descrição |
 |----------|:-----------:|-----------|
 | `MYINST_API_KEY` | Sim | API key gerada no servidor |
-| `MYINST_SERVER` | Não | URL do servidor (padrão: `http://localhost:3000`) |
+| `MYINST_SERVER` | Não | URL do servidor (padrão: `http://localhost:3000`; em produção hospedada use `https://api-myinst.lotoscore.com.br`) |
 
 ## Tools Disponíveis
 

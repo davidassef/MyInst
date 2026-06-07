@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Key, Plus, Trash2, Copy, Check } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, API_SERVER_BASE } from '@/lib/api';
 
 interface ApiKeyItem {
   id: string;
@@ -41,6 +41,18 @@ export function ApiKeysPage() {
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   }
+
+  const exemploMcp = `{
+  "mcpServers": {
+    "myinst": {
+      "command": "myinst-mcp",
+      "env": {
+        "MYINST_API_KEY": "sua_key_aqui",
+        "MYINST_SERVER": "${API_SERVER_BASE}"
+      }
+    }
+  }
+}`;
 
   return (
     <div>
@@ -132,19 +144,9 @@ export function ApiKeysPage() {
       <div className="mt-8 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
         <h3 className="text-sm font-semibold text-zinc-300 mb-2">Como usar</h3>
         <p className="text-sm text-zinc-500 mb-3">
-          Configure a API key no seu MCP server para sincronizar suas instruções:
+          Configure a API key no seu MCP server para sincronizar suas instruções com o ambiente atual:
         </p>
-        <pre className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs text-zinc-400 font-mono overflow-x-auto">{`{
-  "mcpServers": {
-    "myinst": {
-      "command": "myinst-mcp",
-      "env": {
-        "MYINST_API_KEY": "sua_key_aqui",
-        "MYINST_SERVER": "http://localhost:3000"
-      }
-    }
-  }
-}`}</pre>
+        <pre className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs text-zinc-400 font-mono overflow-x-auto">{exemploMcp}</pre>
       </div>
     </div>
   );
