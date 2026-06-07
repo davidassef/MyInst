@@ -3,6 +3,11 @@ import type { ClientProfileId } from '@myinst/shared';
 import { db } from '../db/index.js';
 import { clientProfileItems, clientProfiles } from '../db/schema.js';
 
+type ClientProfileListItem = typeof clientProfiles.$inferSelect & {
+  itemCount: number;
+  isConfigured: boolean;
+};
+
 const CLIENTES_SUPORTADOS: Record<ClientProfileId, { name: string; slug: string; description: string }> = {
   codex: {
     name: 'Codex',
@@ -106,16 +111,21 @@ export async function listarClientProfilesDoUsuario(userId: string) {
   const porCliente = new Map(existentes.map((perfil) => [perfil.clientId, perfil]));
   const totalPorPerfil = new Map(contagens.map((contagem) => [contagem.clientProfileId, Number(contagem.total)]));
 
-  return listarClientesProfileSuportados().map((cliente) => {
+  const perfis = listarClientesProfileSuportados().map<ClientProfileListItem>((cliente) => {
     const existente = porCliente.get(cliente.clientId);
     if (existente) {
-      return existente;
+      const itemCount = totalPorPerfil.get(existente.id) ?? 0;
+      return {
+        ...existente,
+        itemCount,
+        isConfigured: itemCount > 0,
+      };
     }
 
     return {
       id: '',
       userId,
-      clientId: cliente.clientId,
+      clientId: cliente.clientId as ClientProfileId,
       name: cliente.name,
       slug: cliente.slug,
       description: cliente.description,
@@ -124,18 +134,9 @@ export async function listarClientProfilesDoUsuario(userId: string) {
       createdAt: new Date(0),
       updatedAt: new Date(0),
     };
-  }).map((perfil) => {
-    if (!perfil.id) {
-      return perfil;
-    }
+  });
 
-    const itemCount = totalPorPerfil.get(perfil.id) ?? 0;
-    return {
-      ...perfil,
-      itemCount,
-      isConfigured: itemCount > 0,
-    };
-  }).sort((perfilA, perfilB) => {
+  return perfis.sort((perfilA, perfilB) => {
     if (perfilA.isConfigured !== perfilB.isConfigured) {
       return perfilA.isConfigured ? -1 : 1;
     }
