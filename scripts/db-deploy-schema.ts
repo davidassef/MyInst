@@ -1,10 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { cwd } from 'node:process';
 
 const composeFile = process.env.MYINST_COMPOSE_FILE || 'docker-compose.yml';
 const envFile = process.env.MYINST_ENV_FILE;
 const nomeServico = process.env.MYINST_SCHEMA_SERVICE || descobrirServico(composeFile);
-const diretorioProjeto = cwd().replace(/\\/g, '/');
 
 const args = ['compose'];
 
@@ -18,21 +16,19 @@ args.push(
   'run',
   '--rm',
   '--build',
-  '-v',
-  `${diretorioProjeto}:/app`,
   nomeServico,
   'sh',
   '-lc',
   [
     'corepack prepare pnpm@10.28.0 --activate',
-    'pnpm install --frozen-lockfile',
+    'CI=true pnpm install --frozen-lockfile',
     'pnpm --filter @myinst/backend db:push',
   ].join(' && '),
 );
 
 const resultado = spawnSync('docker', args, {
   stdio: 'inherit',
-  shell: process.platform === 'win32',
+  shell: false,
   env: process.env,
 });
 

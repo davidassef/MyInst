@@ -67,7 +67,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.patch('/workspaces/:workspaceSlug', { preHandler: [validar(atualizarWorkspaceSchema)] }, async (request, reply) => {
     const { workspaceSlug } = request.params as { workspaceSlug: string };
-    const updates = request.body as Record<string, unknown>;
+    const updates = request.body as { name?: string; slug?: string; description?: string };
     const workspace = await resolverWorkspaceDoUsuario(request.user.id, workspaceSlug);
 
     if (!workspace) {
@@ -76,9 +76,30 @@ export async function workspaceRoutes(app: FastifyInstance) {
       });
     }
 
+    if (updates.slug && updates.slug !== workspace.slug) {
+      const [existente] = await db
+        .select({ id: workspaces.id })
+        .from(workspaces)
+        .where(and(eq(workspaces.userId, request.user.id), eq(workspaces.slug, updates.slug)))
+        .limit(1);
+
+      if (existente) {
+        return reply.status(409).send({
+          error: { code: 'SLUG_EXISTS', message: `Workspace com slug '${updates.slug}' já existe`, status: 409 },
+        });
+      }
+    }
+
+    const payload = {
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...(updates.slug !== undefined ? { slug: updates.slug } : {}),
+      ...(updates.description !== undefined ? { description: updates.description } : {}),
+      updatedAt: new Date(),
+    };
+
     const [atualizado] = await db
       .update(workspaces)
-      .set({ ...updates, updatedAt: new Date() })
+      .set(payload)
       .where(eq(workspaces.id, workspace.id))
       .returning();
 

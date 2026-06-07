@@ -7,6 +7,7 @@ import { aplicarConteudo } from './applier/index.js';
 import type { ConflictStrategy } from './applier/index.js';
 import { lerConteudoLocal } from './reader/index.js';
 import { importarDiretorio, detectarNomeRepositorio } from './importer/index.js';
+import { detectarEstruturasConhecidas } from './detector/index.js';
 import { montarPreviewPull } from './pull-preview.js';
 
 const MYINST_VERSION = '0.1.0-beta.1';
@@ -185,17 +186,18 @@ server.tool(
 
 server.tool(
   'myinst_push',
-  'Sincroniza alterações locais em .claude/ de volta para o vault MyInst após criar ou editar skills e instruções',
+  'Sincroniza alterações locais de .claude/, .codex/, AGENTS.md, CLAUDE.md e .mcp.json de volta para o vault MyInst',
   {
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto destino (omita para "default")').optional(),
-    sourceDir: z.string().describe('Diretório fonte com .claude/ (padrão: diretório atual)').optional(),
-    types: z.array(z.string()).describe('Tipos de conteúdo para enviar (skill, agent, memory, snippet, instruction)').optional(),
+    sourceDir: z.string().describe('Diretório fonte do projeto ou da configuração global (padrão: diretório atual)').optional(),
+    types: z.array(z.string()).describe('Tipos de conteúdo para enviar (skill, agent, memory, snippet, hook, instruction, mcp_config)').optional(),
     dryRun: z.boolean().describe('Apenas mostra o que seria enviado sem efetuar push').optional(),
   },
   async ({ workspace, project, sourceDir, types, dryRun }) => {
     const slug = project || 'default';
     const dir = sourceDir || process.cwd();
+    const estruturas = await detectarEstruturasConhecidas(dir);
 
     let itens = await lerConteudoLocal(dir);
 
@@ -205,7 +207,10 @@ server.tool(
 
     if (itens.length === 0) {
       return {
-        content: [{ type: 'text', text: 'Nenhum conteúdo encontrado em .claude/ para enviar.' }],
+        content: [{
+          type: 'text',
+          text: montarMensagemSemConteudo(dir, estruturas.encontrados),
+        }],
       };
     }
 
@@ -214,7 +219,14 @@ server.tool(
       return {
         content: [{
           type: 'text',
-          text: `[DRY RUN] ${itens.length} item(ns) seriam enviados:\n${JSON.stringify(preview, null, 2)}`,
+          text: [
+            `[DRY RUN] Origem detectada em ${dir}`,
+            montarResumoEstruturas(estruturas.encontrados),
+            `Tipos encontrados: ${montarResumoTipos(itens)}`,
+            '',
+            `${itens.length} item(ns) seriam enviados:`,
+            JSON.stringify(preview, null, 2),
+          ].join('\n'),
         }],
       };
     }
@@ -224,7 +236,13 @@ server.tool(
     return {
       content: [{
         type: 'text',
-        text: `Push concluído para projeto "${slug}":\n  - Criados: ${resultado.created.length} (${resultado.created.join(', ') || 'nenhum'})\n  - Atualizados: ${resultado.updated.length} (${resultado.updated.join(', ') || 'nenhum'})`,
+        text: [
+          `Push concluído para projeto "${slug}" a partir de ${dir}:`,
+          montarResumoEstruturas(estruturas.encontrados),
+          `Tipos sincronizados: ${montarResumoTipos(itens)}`,
+          `  - Criados: ${resultado.created.length} (${resultado.created.join(', ') || 'nenhum'})`,
+          `  - Atualizados: ${resultado.updated.length} (${resultado.updated.join(', ') || 'nenhum'})`,
+        ].join('\n'),
       }],
     };
   },
@@ -232,9 +250,9 @@ server.tool(
 
 server.tool(
   'myinst_import',
-  'Importa conteúdo de qualquer diretório com estrutura Claude Code para o vault MyInst (skills, agents, memory, hooks, etc.). Organiza automaticamente em pasta com o nome do repositório.',
+  'Importa conteúdo de diretórios com estruturas conhecidas de agente, incluindo .claude/, .codex/, AGENTS.md, CLAUDE.md e .mcp.json. Organiza automaticamente em pasta com o nome do repositório.',
   {
-    sourceDir: z.string().describe('Diretório fonte para escanear recursivamente'),
+    sourceDir: z.string().describe('Diretório fonte para identificar e importar estruturas conhecidas de agente'),
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto destino (omita para "default")').optional(),
     folderName: z.string().describe('Nome da pasta destino (omita para auto-detectar via git remote ou nome da pasta)').optional(),
@@ -243,11 +261,15 @@ server.tool(
   },
   async ({ sourceDir, workspace, project, folderName, dryRun, overwrite }) => {
     const slug = project || 'default';
+    const estruturas = await detectarEstruturasConhecidas(sourceDir);
     const itens = await importarDiretorio(sourceDir);
 
     if (itens.length === 0) {
       return {
-        content: [{ type: 'text', text: 'Nenhum conteúdo importável encontrado no diretório.' }],
+        content: [{
+          type: 'text',
+          text: montarMensagemSemConteudo(sourceDir, estruturas.encontrados),
+        }],
       };
     }
 
@@ -258,7 +280,14 @@ server.tool(
       return {
         content: [{
           type: 'text',
-          text: `[DRY RUN] ${itens.length} item(ns) seriam importados para pasta "${nomeRepo}":\n${JSON.stringify(preview, null, 2)}`,
+          text: [
+            `[DRY RUN] Origem detectada em ${sourceDir}`,
+            montarResumoEstruturas(estruturas.encontrados),
+            `Tipos encontrados: ${montarResumoTipos(itens)}`,
+            '',
+            `${itens.length} item(ns) seriam importados para pasta "${nomeRepo}":`,
+            JSON.stringify(preview, null, 2),
+          ].join('\n'),
         }],
       };
     }
@@ -294,7 +323,15 @@ server.tool(
       return {
         content: [{
           type: 'text',
-          text: `Nenhum item novo para importar. ${ignorados.length} item(ns) já existem no vault:\n${conflitos}\n\nUse overwrite: true para sobrescrever.`,
+          text: [
+            `Nenhum item novo para importar a partir de ${sourceDir}.`,
+            montarResumoEstruturas(estruturas.encontrados),
+            `Tipos encontrados: ${montarResumoTipos(itens)}`,
+            `${ignorados.length} item(ns) já existem no vault:`,
+            conflitos,
+            '',
+            'Use overwrite: true para sobrescrever.',
+          ].join('\n'),
         }],
       };
     }
@@ -302,7 +339,9 @@ server.tool(
     const resultado = await client.push({ workspace, project: slug, folderSlug: nomeRepo, items: paraEnviar });
 
     const linhas = [
-      `Import concluído para projeto "${slug}" → pasta "${nomeRepo}":`,
+      `Import concluído para projeto "${slug}" → pasta "${nomeRepo}" a partir de ${sourceDir}:`,
+      montarResumoEstruturas(estruturas.encontrados),
+      `Tipos importados: ${montarResumoTipos(paraEnviar)}`,
       `  - Criados: ${resultado.created.length} (${resultado.created.join(', ') || 'nenhum'})`,
       `  - Atualizados: ${resultado.updated.length} (${resultado.updated.join(', ') || 'nenhum'})`,
     ];
@@ -319,3 +358,35 @@ server.tool(
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+function montarResumoTipos(itens: Array<{ type: string }>) {
+  const contagemPorTipo = new Map<string, number>();
+
+  for (const item of itens) {
+    const quantidadeAtual = contagemPorTipo.get(item.type) ?? 0;
+    contagemPorTipo.set(item.type, quantidadeAtual + 1);
+  }
+
+  return [...contagemPorTipo.entries()]
+    .map(([tipo, quantidade]) => `${tipo}: ${quantidade}`)
+    .join(', ');
+}
+
+function montarResumoEstruturas(estruturas: string[]) {
+  if (estruturas.length === 0) {
+    return 'Estruturas reconhecidas: nenhuma';
+  }
+
+  return `Estruturas reconhecidas: ${estruturas.join(', ')}`;
+}
+
+function montarMensagemSemConteudo(diretorio: string, estruturas: string[]) {
+  const linhas = [
+    `Nenhum conteúdo sincronizável encontrado em ${diretorio}.`,
+    montarResumoEstruturas(estruturas),
+    'O MyInst procura apenas estruturas conhecidas: .claude/, .codex/, AGENTS.md, CLAUDE.md e .mcp.json.',
+    'Caches, plugins empacotados, sessions e node_modules são ignorados.',
+  ];
+
+  return linhas.join('\n');
+}

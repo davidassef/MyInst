@@ -59,11 +59,18 @@ Adicione nas configurações do MCP da extensão com os mesmos parâmetros.
 O uso recomendado do MyInst MCP é local-first:
 
 1. Use `myinst_pull` no início do trabalho para materializar o vault no projeto local.
-2. Trabalhe sobre os arquivos em `.claude/`.
-3. Use `myinst_push` sempre que criar, editar, reescrever ou reorganizar skills, instructions, agents, hooks, memory ou snippets.
+2. Trabalhe sobre os arquivos locais materializados ou existentes em `.claude/`, `.codex/`, `AGENTS.md`, `CLAUDE.md` e `.mcp.json`.
+3. Use `myinst_push` sempre que criar, editar, reescrever ou reorganizar skills, instructions, agents, hooks, memory, snippets ou configuracoes MCP.
 4. Use `myinst_search` apenas para descoberta pontual, quando ainda não souber qual conteúdo materializar.
 
 Todo `myinst_pull` cria ou atualiza `.claude/MYINST.md`, um guia operacional para o agente entender esse fluxo.
+
+O `myinst_push` e o `myinst_import` reconhecem estruturas conhecidas de agentes, incluindo:
+
+- `.claude/skills`, `.claude/agents`, `.claude/memory`, `.claude/snippets`, `.claude/hooks`
+- `.claude/CLAUDE.md`, `*.rules.md` e `.claude/.mcp.json`
+- `.codex/skills/<slug>/SKILL.md` e `.codex/AGENTS.md`
+- `AGENTS.md`, `CLAUDE.md` e `.mcp.json` na raiz do projeto
 
 ### myinst_list_projects
 

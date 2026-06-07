@@ -91,6 +91,8 @@ export const api = {
       request<any>(`/workspaces/${workspaceSlug}/projects`, { method: 'POST', body: JSON.stringify(body) }),
     obter: (workspaceSlug: string, projectSlug: string) =>
       request<any>(`/workspaces/${workspaceSlug}/projects/${projectSlug}`),
+    atualizar: (workspaceSlug: string, projectSlug: string, body: { name?: string; slug?: string; description?: string }) =>
+      request<any>(`/workspaces/${workspaceSlug}/projects/${projectSlug}`, { method: 'PATCH', body: JSON.stringify(body) }),
     deletar: (workspaceSlug: string, projectSlug: string) =>
       request<void>(`/workspaces/${workspaceSlug}/projects/${projectSlug}`, { method: 'DELETE' }),
   },

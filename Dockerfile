@@ -19,6 +19,7 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/backend/dist ./backend/dist
 COPY backend/drizzle.config.ts ./backend/
+COPY backend/src/db/schema.ts ./backend/src/db/schema.ts
 
 EXPOSE 3000
 CMD ["node", "backend/dist/index.js"]

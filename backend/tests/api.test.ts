@@ -13,6 +13,7 @@ describe('MyInst API', () => {
   let apiKey: string;
   let apiKeyId: string;
   const workspaceSecundarioSlug = 'cliente-acme';
+  const workspaceRenomeavelSlug = 'workspace-renomeavel';
 
   beforeAll(async () => {
     app = await criarApp(carregarAmbiente({
@@ -270,6 +271,43 @@ describe('MyInst API', () => {
       expect(res.statusCode).toBe(409);
     });
 
+    it('PATCH /projects/:slug permite renomear projeto do workspace default', async () => {
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/projects/meu-saas',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          name: 'Meu SaaS Renomeado',
+          slug: 'meu-saas-renomeado',
+          description: 'Projeto teste atualizado',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.name).toBe('Meu SaaS Renomeado');
+      expect(res.json().data.slug).toBe('meu-saas-renomeado');
+    });
+
+    it('PATCH /projects/:slug retorna 409 quando o slug já existe no mesmo workspace', async () => {
+      const criarRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/projects',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: { name: 'Projeto Colisão', slug: 'projeto-colisao' },
+      });
+      expect(criarRes.statusCode).toBe(201);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/projects/projeto-colisao',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: { slug: 'meu-saas-renomeado' },
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('SLUG_EXISTS');
+    });
+
     it('DELETE /projects/:slug não permite deletar default', async () => {
       const res = await app.inject({
         method: 'DELETE',
@@ -311,6 +349,50 @@ describe('MyInst API', () => {
       );
     });
 
+    it('POST /workspaces cria workspace dedicado para teste de rename', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/workspaces',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          name: 'Workspace Renomeável',
+          slug: workspaceRenomeavelSlug,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().data.slug).toBe(workspaceRenomeavelSlug);
+    });
+
+    it('PATCH /workspaces/:workspaceSlug permite renomear workspace', async () => {
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/workspaces/${workspaceRenomeavelSlug}`,
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          name: 'Workspace Renomeado',
+          slug: 'workspace-renomeado',
+          description: 'Workspace atualizado',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.name).toBe('Workspace Renomeado');
+      expect(res.json().data.slug).toBe('workspace-renomeado');
+    });
+
+    it('PATCH /workspaces/:workspaceSlug retorna 409 quando o slug já existe', async () => {
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/workspaces/workspace-renomeado',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: { slug: workspaceSecundarioSlug },
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('SLUG_EXISTS');
+    });
+
     it('permite o mesmo slug de projeto em workspaces diferentes', async () => {
       const projetosDefaultRes = await app.inject({
         method: 'GET',
@@ -341,6 +423,71 @@ describe('MyInst API', () => {
           }),
         ]),
       );
+    });
+
+    it('PATCH /workspaces/:workspaceSlug/projects/:slug permite renomear projeto em workspace explícito', async () => {
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/workspaces/${workspaceSecundarioSlug}/projects/default`,
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          name: 'Projeto Default Acme',
+          slug: 'acme-default',
+          description: 'Projeto default renomeado',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.name).toBe('Projeto Default Acme');
+      expect(res.json().data.slug).toBe('acme-default');
+    });
+
+    it('PATCH /workspaces/:workspaceSlug/projects/:slug retorna 409 em colisão no mesmo workspace', async () => {
+      const [planoExpandido] = await db.insert(plans).values({
+        name: `test-projects-${Date.now()}`,
+        maxItems: 1000,
+        maxProjects: 1000,
+        maxApiKeys: 1000,
+        rateLimit: 60,
+      }).returning();
+
+      const decoded = app.jwt.decode(token) as { id: string };
+      await db
+        .update(users)
+        .set({ planId: planoExpandido.id })
+        .where(eq(users.id, decoded.id));
+
+      const criarRes = await app.inject({
+        method: 'POST',
+        url: `/api/v1/workspaces/${workspaceSecundarioSlug}/projects`,
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          name: 'Projeto Acme',
+          slug: 'acme-secundario',
+        },
+      });
+      expect(criarRes.statusCode).toBe(201);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/workspaces/${workspaceSecundarioSlug}/projects/acme-secundario`,
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: { slug: 'acme-default' },
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('SLUG_EXISTS');
+
+      const [planoFree] = await db
+        .select({ id: plans.id })
+        .from(plans)
+        .where(eq(plans.name, 'free'))
+        .limit(1);
+
+      await db
+        .update(users)
+        .set({ planId: planoFree.id })
+        .where(eq(users.id, decoded.id));
     });
   });
 
@@ -390,7 +537,7 @@ describe('MyInst API', () => {
     it('POST /workspaces/:workspaceSlug/projects/:projectSlug/content cria skill isolada em outro workspace', async () => {
       const res = await app.inject({
         method: 'POST',
-        url: `/api/v1/workspaces/${workspaceSecundarioSlug}/projects/default/content`,
+        url: `/api/v1/workspaces/${workspaceSecundarioSlug}/projects/acme-default/content`,
         headers: { authorization: `Bearer ${apiKey}` },
         payload: {
           type: 'skill',
@@ -545,7 +692,7 @@ describe('MyInst API', () => {
         method: 'POST',
         url: '/api/v1/sync/pull',
         headers: { authorization: `Bearer ${apiKey}` },
-        payload: { workspace: workspaceSecundarioSlug, project: 'default' },
+        payload: { workspace: workspaceSecundarioSlug, project: 'acme-default' },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().data.items).toEqual(

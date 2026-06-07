@@ -101,7 +101,7 @@ export async function projectRoutes(app: FastifyInstance) {
 
   app.patch('/projects/:slug', { preHandler: [validar(atualizarProjetoSchema)] }, async (request, reply) => {
     const { slug } = request.params as { slug: string };
-    const updates = request.body as Record<string, unknown>;
+    const updates = request.body as { name?: string; slug?: string; description?: string };
     const projeto = await buscarProjeto(request.user.id, slug);
 
     if (!projeto) {
@@ -110,9 +110,40 @@ export async function projectRoutes(app: FastifyInstance) {
       });
     }
 
+    if (!projeto.workspaceId) {
+      return reply.status(500).send({
+        error: { code: 'INVALID_PROJECT_SCOPE', message: 'Projeto sem workspace associado', status: 500 },
+      });
+    }
+
+    if (updates.slug && updates.slug !== projeto.slug) {
+      const [existente] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(
+          eq(projects.userId, request.user.id),
+          eq(projects.workspaceId, projeto.workspaceId),
+          eq(projects.slug, updates.slug),
+        ))
+        .limit(1);
+
+      if (existente) {
+        return reply.status(409).send({
+          error: { code: 'SLUG_EXISTS', message: `Projeto com slug '${updates.slug}' já existe`, status: 409 },
+        });
+      }
+    }
+
+    const payload = {
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...(updates.slug !== undefined ? { slug: updates.slug } : {}),
+      ...(updates.description !== undefined ? { description: updates.description } : {}),
+      updatedAt: new Date(),
+    };
+
     const [atualizado] = await db
       .update(projects)
-      .set({ ...updates, updatedAt: new Date() })
+      .set(payload)
       .where(eq(projects.id, projeto.id))
       .returning();
 
@@ -208,7 +239,7 @@ export async function projectRoutes(app: FastifyInstance) {
     { preHandler: [validar(atualizarProjetoSchema)] },
     async (request, reply) => {
       const { workspaceSlug, slug } = request.params as { workspaceSlug: string; slug: string };
-      const updates = request.body as Record<string, unknown>;
+      const updates = request.body as { name?: string; slug?: string; description?: string };
       const projeto = await buscarProjeto(request.user.id, slug, workspaceSlug);
 
       if (!projeto) {
@@ -217,9 +248,40 @@ export async function projectRoutes(app: FastifyInstance) {
         });
       }
 
+      if (!projeto.workspaceId) {
+        return reply.status(500).send({
+          error: { code: 'INVALID_PROJECT_SCOPE', message: 'Projeto sem workspace associado', status: 500 },
+        });
+      }
+
+      if (updates.slug && updates.slug !== projeto.slug) {
+        const [existente] = await db
+          .select({ id: projects.id })
+          .from(projects)
+          .where(and(
+            eq(projects.userId, request.user.id),
+            eq(projects.workspaceId, projeto.workspaceId),
+            eq(projects.slug, updates.slug),
+          ))
+          .limit(1);
+
+        if (existente) {
+          return reply.status(409).send({
+            error: { code: 'SLUG_EXISTS', message: `Projeto com slug '${updates.slug}' já existe neste workspace`, status: 409 },
+          });
+        }
+      }
+
+      const payload = {
+        ...(updates.name !== undefined ? { name: updates.name } : {}),
+        ...(updates.slug !== undefined ? { slug: updates.slug } : {}),
+        ...(updates.description !== undefined ? { description: updates.description } : {}),
+        updatedAt: new Date(),
+      };
+
       const [atualizado] = await db
         .update(projects)
-        .set({ ...updates, updatedAt: new Date() })
+        .set(payload)
         .where(eq(projects.id, projeto.id))
         .returning();
 

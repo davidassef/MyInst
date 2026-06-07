@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { join, basename, extname, relative, resolve } from 'node:path';
+import { join, basename, extname, resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
 export interface ItemImportado {
@@ -16,6 +16,245 @@ interface Frontmatter {
   description?: string;
   type?: string;
   [key: string]: unknown;
+}
+
+export async function importarDiretorio(diretorioBase: string): Promise<ItemImportado[]> {
+  const itens = new Map<string, ItemImportado>();
+  const raiz = resolve(diretorioBase);
+
+  await escanearRaizConhecida(raiz, itens);
+
+  return [...itens.values()];
+}
+
+export function detectarNomeRepositorio(diretorio: string): string {
+  const dirResolvido = resolve(diretorio);
+
+  try {
+    const remoteUrl = execSync('git remote get-url origin', {
+      cwd: dirResolvido,
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+
+    const nome = basename(remoteUrl, '.git');
+    return normalizarSlug(nome);
+  } catch {
+    // Sem git ou sem remote — usa nome da pasta
+  }
+
+  const pastaPai = basename(dirResolvido);
+  if (pastaPai === '.claude' || pastaPai === '.codex') {
+    return normalizarSlug(basename(resolve(dirResolvido, '..')));
+  }
+
+  return normalizarSlug(pastaPai);
+}
+
+async function escanearRaizConhecida(diretorio: string, itens: Map<string, ItemImportado>): Promise<void> {
+  await importarArquivosDeRaiz(diretorio, itens);
+
+  const nomeDiretorio = basename(diretorio);
+  if (nomeDiretorio === '.claude') {
+    await importarEstruturaClaude(diretorio, itens);
+    return;
+  }
+
+  if (nomeDiretorio === '.codex') {
+    await importarEstruturaCodex(diretorio, itens);
+    return;
+  }
+
+  const diretorioClaude = join(diretorio, '.claude');
+  if (await existe(diretorioClaude)) {
+    await importarArquivosDeRaiz(diretorio, itens);
+    await importarEstruturaClaude(diretorioClaude, itens);
+  }
+
+  const diretorioCodex = join(diretorio, '.codex');
+  if (await existe(diretorioCodex)) {
+    await importarEstruturaCodex(diretorioCodex, itens);
+  }
+
+  const entradas = await listarSubdiretorios(diretorio);
+  for (const entrada of entradas) {
+    if (DIRETORIOS_IGNORADOS.has(entrada)) continue;
+    if (entrada === '.claude' || entrada === '.codex') continue;
+
+    await escanearRaizConhecida(join(diretorio, entrada), itens);
+  }
+}
+
+async function importarEstruturaClaude(diretorioClaude: string, itens: Map<string, ItemImportado>): Promise<void> {
+  await importarMarkdownsDiretos(join(diretorioClaude, 'skills'), 'skill', itens);
+  await importarMarkdownsDiretos(join(diretorioClaude, 'agents'), 'agent', itens);
+  await importarMarkdownsDiretos(join(diretorioClaude, 'memory'), 'memory', itens);
+  await importarMarkdownsDiretos(join(diretorioClaude, 'snippets'), 'snippet', itens);
+  await importarMarkdownsDiretos(join(diretorioClaude, 'hooks'), 'hook', itens);
+
+  await importarArquivoInstrucao(join(diretorioClaude, 'CLAUDE.md'), 'claude', itens);
+  await importarArquivosRules(diretorioClaude, itens);
+  await importarArquivoMcp(join(diretorioClaude, '.mcp.json'), itens);
+}
+
+async function importarEstruturaCodex(diretorioCodex: string, itens: Map<string, ItemImportado>): Promise<void> {
+  await importarArquivoInstrucao(join(diretorioCodex, 'AGENTS.md'), 'agents', itens);
+  await importarArquivoInstrucao(join(diretorioCodex, 'CLAUDE.md'), 'claude', itens);
+  await importarArquivoMcp(join(diretorioCodex, '.mcp.json'), itens);
+  await importarSkillsCodex(join(diretorioCodex, 'skills'), itens);
+}
+
+async function importarArquivosDeRaiz(diretorio: string, itens: Map<string, ItemImportado>): Promise<void> {
+  await importarArquivoInstrucao(join(diretorio, 'AGENTS.md'), 'agents', itens);
+  await importarArquivoInstrucao(join(diretorio, 'CLAUDE.md'), 'claude', itens);
+  await importarArquivoMcp(join(diretorio, '.mcp.json'), itens);
+}
+
+async function importarMarkdownsDiretos(
+  diretorio: string,
+  tipo: string,
+  itens: Map<string, ItemImportado>,
+): Promise<void> {
+  let arquivos: string[];
+  try {
+    arquivos = await readdir(diretorio);
+  } catch {
+    return;
+  }
+
+  for (const arquivo of arquivos) {
+    if (!arquivo.endsWith('.md')) continue;
+
+    const caminho = join(diretorio, arquivo);
+    const conteudoBruto = await readFile(caminho, 'utf-8');
+    const { frontmatter, corpo } = parsearFrontmatter(conteudoBruto);
+    const slug = normalizarSlug(basename(arquivo, extname(arquivo)));
+    const titulo = typeof frontmatter.name === 'string' && frontmatter.name
+      ? frontmatter.name
+      : tituloDoSlug(slug);
+
+    registrarItem(itens, {
+      type: typeof frontmatter.type === 'string' && frontmatter.type ? frontmatter.type : tipo,
+      title: titulo,
+      slug,
+      body: corpo || conteudoBruto,
+      metadata: extrairMetadata(frontmatter),
+      tags: [],
+    });
+  }
+}
+
+async function importarSkillsCodex(diretorioSkills: string, itens: Map<string, ItemImportado>): Promise<void> {
+  let entradas: string[];
+  try {
+    entradas = await readdir(diretorioSkills);
+  } catch {
+    return;
+  }
+
+  for (const entrada of entradas) {
+    const caminhoEntrada = join(diretorioSkills, entrada);
+    if (DIRETORIOS_IGNORADOS.has(entrada)) continue;
+
+    if (await existe(join(caminhoEntrada, 'SKILL.md'))) {
+      const conteudoBruto = await readFile(join(caminhoEntrada, 'SKILL.md'), 'utf-8');
+      const { frontmatter, corpo } = parsearFrontmatter(conteudoBruto);
+      const slug = normalizarSlug(entrada);
+      const titulo = typeof frontmatter.name === 'string' && frontmatter.name
+        ? frontmatter.name
+        : tituloDoSlug(slug);
+
+      registrarItem(itens, {
+        type: 'skill',
+        title: titulo,
+        slug,
+        body: corpo || conteudoBruto,
+        metadata: extrairMetadata(frontmatter),
+        tags: [],
+      });
+      continue;
+    }
+
+    const subdiretorios = await listarSubdiretorios(caminhoEntrada);
+    for (const subdiretorio of subdiretorios) {
+      if (DIRETORIOS_IGNORADOS.has(subdiretorio)) continue;
+      const caminhoSubdiretorio = join(caminhoEntrada, subdiretorio);
+      if (!(await existe(join(caminhoSubdiretorio, 'SKILL.md')))) continue;
+
+      const conteudoBruto = await readFile(join(caminhoSubdiretorio, 'SKILL.md'), 'utf-8');
+      const { frontmatter, corpo } = parsearFrontmatter(conteudoBruto);
+      const slug = normalizarSlug(subdiretorio);
+      const titulo = typeof frontmatter.name === 'string' && frontmatter.name
+        ? frontmatter.name
+        : tituloDoSlug(slug);
+
+      registrarItem(itens, {
+        type: 'skill',
+        title: titulo,
+        slug,
+        body: corpo || conteudoBruto,
+        metadata: extrairMetadata(frontmatter),
+        tags: [],
+      });
+    }
+  }
+}
+
+async function importarArquivoInstrucao(
+  caminhoArquivo: string,
+  slug: string,
+  itens: Map<string, ItemImportado>,
+): Promise<void> {
+  if (!(await existe(caminhoArquivo))) return;
+
+  const conteudo = await readFile(caminhoArquivo, 'utf-8');
+  registrarItem(itens, {
+    type: 'instruction',
+    title: tituloDoSlug(slug),
+    slug,
+    body: conteudo,
+    metadata: {},
+    tags: [],
+  });
+}
+
+async function importarArquivosRules(diretorio: string, itens: Map<string, ItemImportado>): Promise<void> {
+  let arquivos: string[];
+  try {
+    arquivos = await readdir(diretorio);
+  } catch {
+    return;
+  }
+
+  for (const arquivo of arquivos) {
+    if (!arquivo.endsWith('.rules.md')) continue;
+
+    const conteudo = await readFile(join(diretorio, arquivo), 'utf-8');
+    const slug = normalizarSlug(basename(arquivo, '.md'));
+    registrarItem(itens, {
+      type: 'instruction',
+      title: tituloDoSlug(slug),
+      slug,
+      body: conteudo,
+      metadata: {},
+      tags: [],
+    });
+  }
+}
+
+async function importarArquivoMcp(caminhoArquivo: string, itens: Map<string, ItemImportado>): Promise<void> {
+  if (!(await existe(caminhoArquivo))) return;
+
+  const conteudo = await readFile(caminhoArquivo, 'utf-8');
+  registrarItem(itens, {
+    type: 'mcp_config',
+    title: 'MCP Config',
+    slug: 'mcp-config',
+    body: conteudo,
+    metadata: {},
+    tags: [],
+  });
 }
 
 function parsearFrontmatter(conteudo: string): { frontmatter: Frontmatter; corpo: string } {
@@ -44,24 +283,17 @@ function parsearFrontmatter(conteudo: string): { frontmatter: Frontmatter; corpo
   return { frontmatter, corpo };
 }
 
-function detectarTipo(caminhoRelativo: string): string | null {
-  const normalizado = caminhoRelativo.replace(/\\/g, '/');
+function extrairMetadata(frontmatter: Frontmatter): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {};
+  if (frontmatter.description) {
+    metadata.description = frontmatter.description;
+  }
 
-  if (/\/skills\//.test(normalizado) || normalizado.startsWith('skills/')) return 'skill';
-  if (/\/agents\//.test(normalizado) || normalizado.startsWith('agents/')) return 'agent';
-  if (/\/memory\//.test(normalizado) || normalizado.startsWith('memory/')) return 'memory';
-  if (/\/snippets\//.test(normalizado) || normalizado.startsWith('snippets/')) return 'snippet';
-  if (/\/hooks\//.test(normalizado) || normalizado.startsWith('hooks/')) return 'hook';
-  if (/CLAUDE\.md$/.test(normalizado) || /\.rules\.md$/.test(normalizado)) return 'instruction';
-
-  return null;
+  return metadata;
 }
 
-function slugDoArquivo(nomeArquivo: string): string {
-  return basename(nomeArquivo, extname(nomeArquivo))
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+function registrarItem(itens: Map<string, ItemImportado>, item: ItemImportado): void {
+  itens.set(`${item.type}:${item.slug}`, item);
 }
 
 function tituloDoSlug(slug: string): string {
@@ -71,116 +303,36 @@ function tituloDoSlug(slug: string): string {
     .join(' ');
 }
 
-async function listarArquivosRecursivo(diretorio: string): Promise<string[]> {
-  const arquivos: string[] = [];
+function normalizarSlug(valor: string): string {
+  return valor
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 
+async function listarSubdiretorios(diretorio: string): Promise<string[]> {
   let entradas: string[];
   try {
-    entradas = await readdir(diretorio, { recursive: true }) as unknown as string[];
+    entradas = await readdir(diretorio);
   } catch {
     return [];
   }
 
-  for (const entrada of entradas) {
-    const caminhoAbsoluto = join(diretorio, entrada);
-    if (deveIgnorarCaminho(caminhoAbsoluto)) continue;
-
-    arquivos.push(caminhoAbsoluto);
-  }
-
-  return arquivos;
+  return entradas;
 }
 
-export async function importarDiretorio(diretorioBase: string): Promise<ItemImportado[]> {
-  const itens: ItemImportado[] = [];
-  const todosArquivos = await listarArquivosRecursivo(diretorioBase);
-
-  for (const caminhoAbsoluto of todosArquivos) {
-    const caminhoRelativo = relative(diretorioBase, caminhoAbsoluto).replace(/\\/g, '/');
-    const nomeArquivo = basename(caminhoAbsoluto);
-    const extensao = extname(nomeArquivo);
-
-    if (nomeArquivo === '.mcp.json') {
-      try {
-        const conteudo = await readFile(caminhoAbsoluto, 'utf-8');
-        itens.push({
-          type: 'mcp_config',
-          title: 'MCP Config',
-          slug: 'mcp-config',
-          body: conteudo,
-          metadata: {},
-          tags: [],
-        });
-      } catch {
-        // arquivo ilegível, ignora
-      }
-      continue;
-    }
-
-    if (extensao !== '.md') continue;
-
-    const tipoDetectado = detectarTipo(caminhoRelativo);
-    if (!tipoDetectado) continue;
-
-    try {
-      const conteudoBruto = await readFile(caminhoAbsoluto, 'utf-8');
-      const { frontmatter, corpo } = parsearFrontmatter(conteudoBruto);
-
-      const tipo = (frontmatter.type as string) || tipoDetectado;
-      const slug = slugDoArquivo(nomeArquivo);
-      const titulo = (frontmatter.name as string) || tituloDoSlug(slug);
-
-      const metadata: Record<string, unknown> = {};
-      if (frontmatter.description) {
-        metadata.description = frontmatter.description;
-      }
-
-      itens.push({
-        type: tipo,
-        title: titulo,
-        slug,
-        body: corpo || conteudoBruto,
-        metadata,
-        tags: [],
-      });
-    } catch {
-      // arquivo ilegível, ignora
-    }
-  }
-
-  return itens;
-}
-
-export function detectarNomeRepositorio(diretorio: string): string {
-  const dirResolvido = resolve(diretorio);
-
+async function existe(caminho: string): Promise<boolean> {
   try {
-    const remoteUrl = execSync('git remote get-url origin', {
-      cwd: dirResolvido,
-      encoding: 'utf-8',
-      timeout: 5000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-
-    const nome = basename(remoteUrl, '.git');
-    return nome.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    await readdir(caminho);
+    return true;
   } catch {
-    // Sem git ou sem remote — usa nome da pasta
+    try {
+      await readFile(caminho, 'utf-8');
+      return true;
+    } catch {
+      return false;
+    }
   }
-
-  const pastaPai = basename(dirResolvido);
-  if (pastaPai === '.claude') {
-    return basename(resolve(dirResolvido, '..')).toLowerCase().replace(/[^a-z0-9-]/g, '-');
-  }
-
-  return pastaPai.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-}
-
-function deveIgnorarCaminho(caminhoAbsoluto: string): boolean {
-  const caminhoNormalizado = caminhoAbsoluto.replace(/\\/g, '/');
-  const segmentos = caminhoNormalizado.split('/');
-
-  return segmentos.some((segmento) => DIRETORIOS_IGNORADOS.has(segmento));
 }
 
 const DIRETORIOS_IGNORADOS = new Set([
@@ -191,4 +343,23 @@ const DIRETORIOS_IGNORADOS = new Set([
   '.next',
   '.turbo',
   'coverage',
+  'cache',
+  'plugins',
+  'attachments',
+  'sessions',
+  'browser',
+  'computer-use',
+  'memories',
+  'node_repl',
+  'sqlite',
+  'tmp',
+  '.tmp',
+  '.sandbox',
+  '.sandbox-bin',
+  '.sandbox-secrets',
+  'vendor_imports',
+  'generated_images',
+  'ambient-suggestions',
+  'process_manager',
+  'pets',
 ]);

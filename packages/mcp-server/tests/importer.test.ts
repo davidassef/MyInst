@@ -16,6 +16,7 @@ describe('Importer', () => {
     await mkdir(join(tempDir, '.claude', 'snippets'), { recursive: true });
     await mkdir(join(tempDir, '.claude', 'hooks'), { recursive: true });
     await mkdir(join(tempDir, 'subprojeto', '.claude', 'skills'), { recursive: true });
+    await mkdir(join(tempDir, '.codex', 'skills', 'infra-local'), { recursive: true });
 
     await writeFile(
       join(tempDir, '.claude', 'skills', 'tdd.md'),
@@ -55,6 +56,8 @@ describe('Importer', () => {
     );
 
     await writeFile(join(tempDir, '.claude', '.mcp.json'), '{"mcpServers":{}}');
+    await writeFile(join(tempDir, '.mcp.json'), '{"mcpServers":{"root":{}}}');
+    await writeFile(join(tempDir, 'AGENTS.md'), 'Instruções globais do projeto.');
 
     await writeFile(join(tempDir, '.claude', 'skills', 'config.json'), '{}');
     await writeFile(join(tempDir, '.claude', 'skills', 'notas.txt'), 'ignorar');
@@ -62,6 +65,11 @@ describe('Importer', () => {
     await writeFile(
       join(tempDir, 'subprojeto', '.claude', 'skills', 'nested-skill.md'),
       '---\nname: Skill Aninhada\n---\nConteúdo aninhado.',
+    );
+
+    await writeFile(
+      join(tempDir, '.codex', 'skills', 'infra-local', 'SKILL.md'),
+      '---\nname: Infra Local\n---\nConteúdo da skill global.',
     );
   });
 
@@ -176,5 +184,23 @@ describe('Importer', () => {
 
     expect(rules).toBeDefined();
     expect(rules!.type).toBe('instruction');
+  });
+
+  it('detecta AGENTS.md na raiz como instruction', async () => {
+    const itens = await importarDiretorio(tempDir);
+    const agents = itens.find((i) => i.slug === 'agents');
+
+    expect(agents).toBeDefined();
+    expect(agents!.type).toBe('instruction');
+  });
+
+  it('detecta skills no formato .codex/skills/<slug>/SKILL.md', async () => {
+    const itens = await importarDiretorio(tempDir);
+    const skillCodex = itens.find((i) => i.slug === 'infra-local');
+
+    expect(skillCodex).toBeDefined();
+    expect(skillCodex!.type).toBe('skill');
+    expect(skillCodex!.title).toBe('Infra Local');
+    expect(skillCodex!.body).toBe('Conteúdo da skill global.');
   });
 });

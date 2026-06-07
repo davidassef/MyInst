@@ -14,13 +14,24 @@ describe('Reader', () => {
     await mkdir(join(tempDir, '.claude', 'agents'), { recursive: true });
     await mkdir(join(tempDir, '.claude', 'memory'), { recursive: true });
     await mkdir(join(tempDir, '.claude', 'snippets'), { recursive: true });
+    await mkdir(join(tempDir, '.claude', 'hooks'), { recursive: true });
+    await mkdir(join(tempDir, '.codex', 'skills', 'infra-local'), { recursive: true });
 
     await writeFile(join(tempDir, '.claude', 'skills', 'tdd.md'), 'Escreva testes primeiro.');
     await writeFile(join(tempDir, '.claude', 'skills', 'clean-code.md'), 'Mantenha funções pequenas.');
     await writeFile(join(tempDir, '.claude', 'agents', 'reviewer.md'), 'Revise com foco em segurança.');
     await writeFile(join(tempDir, '.claude', 'memory', 'contexto-projeto.md'), 'Projeto usa Fastify.');
     await writeFile(join(tempDir, '.claude', 'snippets', 'error-handler.md'), 'try/catch padrão.');
+    await writeFile(join(tempDir, '.claude', 'hooks', 'pre-commit.md'), 'Valida lint antes do commit.');
     await writeFile(join(tempDir, '.claude', 'CLAUDE.md'), 'Instruções gerais do projeto.');
+    await writeFile(join(tempDir, '.claude', 'custom.rules.md'), 'Regras locais.');
+    await writeFile(join(tempDir, '.mcp.json'), '{"mcpServers":{"root":{}}}');
+    await writeFile(join(tempDir, 'AGENTS.md'), 'Instruções globais do projeto.');
+    await writeFile(join(tempDir, '.codex', 'AGENTS.md'), 'Instruções globais do Codex.');
+    await writeFile(
+      join(tempDir, '.codex', 'skills', 'infra-local', 'SKILL.md'),
+      '---\nname: Infra Local\n---\nUse compose compartilhado.',
+    );
   });
 
   afterAll(async () => {
@@ -31,8 +42,8 @@ describe('Reader', () => {
     const itens = await lerConteudoLocal(tempDir);
     const skills = itens.filter((i) => i.type === 'skill');
 
-    expect(skills).toHaveLength(2);
-    expect(skills.map((s) => s.slug).sort()).toEqual(['clean-code', 'tdd']);
+    expect(skills).toHaveLength(3);
+    expect(skills.map((s) => s.slug).sort()).toEqual(['clean-code', 'infra-local', 'tdd']);
   });
 
   it('lê agents do diretório .claude/agents/', async () => {
@@ -60,13 +71,20 @@ describe('Reader', () => {
     expect(snippets[0].slug).toBe('error-handler');
   });
 
-  it('lê CLAUDE.md como tipo instruction', async () => {
+  it('lê hooks do diretório .claude/hooks/', async () => {
+    const itens = await lerConteudoLocal(tempDir);
+    const hooks = itens.filter((i) => i.type === 'hook');
+
+    expect(hooks).toHaveLength(1);
+    expect(hooks[0].slug).toBe('pre-commit');
+  });
+
+  it('lê instruções de .claude e da raiz do projeto', async () => {
     const itens = await lerConteudoLocal(tempDir);
     const instrucoes = itens.filter((i) => i.type === 'instruction');
 
-    expect(instrucoes).toHaveLength(1);
-    expect(instrucoes[0].slug).toBe('claude');
-    expect(instrucoes[0].body).toBe('Instruções gerais do projeto.');
+    expect(instrucoes.map((item) => item.slug).sort()).toEqual(['agents', 'claude', 'custom.rules']);
+    expect(instrucoes.find((item) => item.slug === 'claude')?.body).toBe('Instruções gerais do projeto.');
   });
 
   it('gera título a partir do slug', async () => {
@@ -89,7 +107,7 @@ describe('Reader', () => {
     const itens = await lerConteudoLocal(tempDir);
     const skills = itens.filter((i) => i.type === 'skill');
 
-    expect(skills).toHaveLength(2);
+    expect(skills).toHaveLength(3);
   });
 
   it('cada item possui metadata vazio e tags vazio', async () => {
@@ -99,5 +117,14 @@ describe('Reader', () => {
       expect(item.metadata).toEqual({});
       expect(item.tags).toEqual([]);
     }
+  });
+
+  it('lê .mcp.json da raiz como mcp_config', async () => {
+    const itens = await lerConteudoLocal(tempDir);
+    const mcpConfig = itens.find((item) => item.type === 'mcp_config');
+
+    expect(mcpConfig).toBeDefined();
+    expect(mcpConfig?.slug).toBe('mcp-config');
+    expect(mcpConfig?.body).toBe('{"mcpServers":{"root":{}}}');
   });
 });
