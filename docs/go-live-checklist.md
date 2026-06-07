@@ -54,6 +54,13 @@ POSTGRES_PASSWORD=senha-root-forte
 REDIS_PASSWORD=senha-redis-forte
 ```
 
+Importante:
+- `VITE_MYINST_API_BASE` é obrigatória no Vercel em produção.
+- Se ficar vazia, o frontend tenta usar rota relativa e o Vercel retorna erro (`405`) porque não expõe `/api/v1` para backend.
+
+Exemplo para este projeto:
+- `VITE_MYINST_API_BASE=https://api-myinst.lotoscore.com.br`
+
 Gere secrets com:
 
 ```bash
