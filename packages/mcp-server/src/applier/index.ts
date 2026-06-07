@@ -27,14 +27,31 @@ const MARCADOR_GUIA_MYINST = '<!-- myinst-managed: true -->';
 const CONTEUDO_GUIA_MYINST = `${MARCADOR_GUIA_MYINST}
 # MyInst MCP
 
-Use o MyInst como fluxo local-first para skills e instrucoes.
+Use o MyInst como fluxo local-first para materializar, editar e sincronizar contexto agentic.
 
-## Fluxo padrao
-- No inicio do trabalho, use myinst_pull para materializar o vault no projeto local.
-- Prefira os arquivos locais em .claude/ em vez de repetir consultas ao MCP.
-- Use myinst_search apenas para descoberta pontual quando o conteudo ainda nao estiver local.
-- Sempre que criar, editar, reescrever ou reorganizar skills, instructions, agents, hooks, memory ou snippets em .claude/, use myinst_push para sincronizar com o vault do usuario.
-- Quando estiver fora do contexto default, informe workspace e project explicitamente nas tools.
+## Modelo de escopo
+- project: conteudo do repositorio atual. Vai para workspace/projeto no vault.
+- global: configuracoes e skills de cliente que valem para toda a conta. Vao para Client Profiles, fora de workspace e projeto.
+- all: combina project e global na mesma operacao, mas o MyInst separa o destino correto de cada item.
+
+## Fluxo oficial
+- No inicio do trabalho, use myinst_pull para materializar o conteudo relevante localmente.
+- Prefira os arquivos locais materializados em vez de repetir consultas ao MCP.
+- Use myinst_search apenas para descoberta pontual ou para localizar conteudo remoto antes de materializar.
+- Sempre que criar, editar, reescrever ou reorganizar skills, instructions, agents, hooks, memory, snippets ou mcp_config, finalize com myinst_push para sincronizar de volta.
+
+## Regras de uso
+- Se estiver trabalhando no repositorio atual, use scope=project.
+- Se estiver trabalhando em configuracoes da home do usuario, como .codex, .gemini ou .config/opencode, use scope=global.
+- Se houver mais de um cliente detectado, informe clients explicitamente.
+- Quando nao estiver no contexto default, informe workspace e project explicitamente nas tools de projeto.
+- Nao trate configuracoes globais de cliente como projeto. O destino correto e Client Profiles.
+
+## Exemplos operacionais
+- Projeto atual: myinst_pull com scope=project, editar arquivos locais, depois myinst_push com scope=project.
+- Global do Codex: myinst_pull com scope=global e clients=["codex"], editar o conteudo materializado, depois myinst_push com scope=global e clients=["codex"].
+- Busca global: myinst_search com scope=global e clientId="codex".
+- Busca de projeto: myinst_search com workspace e project quando o contexto nao for o default.
 
 ## Arquivos materializados
 - Skills: .claude/skills/{slug}.md
@@ -43,9 +60,11 @@ Use o MyInst como fluxo local-first para skills e instrucoes.
 - Hooks: .claude/hook-{slug}.md
 - Memory: .claude/memory/{slug}.md
 - Snippets: .claude/snippets/{slug}.md
+- MCP Config: .mcp.json
 
-## Regra operacional
-O ciclo correto e: myinst_pull -> trabalho local -> myinst_push.
+## Regra final
+O ciclo correto e sempre:
+myinst_pull -> trabalho local -> myinst_push
 `;
 
 const MAPEAMENTO_DIRETORIO: Record<string, string> = {

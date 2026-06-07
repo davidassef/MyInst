@@ -30,7 +30,18 @@ O fluxo recomendado continua sendo:
 myinst_pull -> trabalho local -> myinst_push
 ```
 
-`myinst_pull` cria ou atualiza `.claude/MYINST.md` para instruir o agente a preferir arquivos locais materializados em vez de consulta repetida.
+`myinst_pull` cria ou atualiza `.claude/MYINST.md` para instruir o agente sobre:
+
+- diferenca entre `scope=project` e `scope=global`
+- uso de `clients` quando houver multiplos clientes detectados
+- fluxo correto `pull -> trabalho local -> push`
+- regra de que configuracoes globais vao para `Client Profiles`, nao para projetos
+
+## Escopos
+
+- `project`: conteudo do repositorio atual, salvo em `workspace/project`
+- `global`: configuracoes e skills globais de cliente, salvas em `Client Profiles`
+- `all`: combina os dois, separando o destino correto por item
 
 ## Descoberta multi-cliente
 

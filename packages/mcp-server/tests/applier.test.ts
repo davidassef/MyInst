@@ -118,7 +118,9 @@ describe('Applier', () => {
 
     expect(resultado[0].status).toBe('overwritten');
     const guia = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
-    expect(guia).toContain('Fluxo padrao');
+    expect(guia).toContain('## Modelo de escopo');
+    expect(guia).toContain('## Fluxo oficial');
+    expect(guia).toContain('Client Profiles');
     expect(guia).not.toContain('conteudo antigo');
 
     await rm(dir, { recursive: true, force: true });
