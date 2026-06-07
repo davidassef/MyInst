@@ -9,6 +9,8 @@ interface ClientProfile {
   name: string;
   slug: string;
   description: string | null;
+  itemCount: number;
+  isConfigured: boolean;
 }
 
 export function ClientProfilesPage() {
@@ -66,6 +68,19 @@ export function ClientProfilesPage() {
               <p className="mt-5 flex-1 text-sm leading-7 text-slate-400">
                 {profile.description || 'Configurações globais disponíveis para sincronização fora do escopo de projeto.'}
               </p>
+
+              <div className="mt-5 flex items-center gap-2">
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] ${
+                  profile.isConfigured
+                    ? 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100'
+                    : 'border-white/10 bg-white/[0.04] text-slate-500'
+                }`}>
+                  {profile.itemCount} item(ns)
+                </span>
+                <span className="text-xs text-slate-500">
+                  {profile.isConfigured ? 'Sincronizado' : 'Ainda não sincronizado'}
+                </span>
+              </div>
 
               <div className="mt-6 flex items-center justify-between border-t border-white/8 pt-4">
                 <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Abrir profile</span>

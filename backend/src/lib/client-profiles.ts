@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { ClientProfileId } from '@myinst/shared';
 import { db } from '../db/index.js';
-import { clientProfiles } from '../db/schema.js';
+import { clientProfileItems, clientProfiles } from '../db/schema.js';
 
 const CLIENTES_SUPORTADOS: Record<ClientProfileId, { name: string; slug: string; description: string }> = {
   codex: {
@@ -94,7 +94,17 @@ export async function listarClientProfilesDoUsuario(userId: string) {
     .from(clientProfiles)
     .where(eq(clientProfiles.userId, userId));
 
+  const contagens = await db
+    .select({
+      clientProfileId: clientProfileItems.clientProfileId,
+      total: sql<number>`count(*)`,
+    })
+    .from(clientProfileItems)
+    .where(eq(clientProfileItems.userId, userId))
+    .groupBy(clientProfileItems.clientProfileId);
+
   const porCliente = new Map(existentes.map((perfil) => [perfil.clientId, perfil]));
+  const totalPorPerfil = new Map(contagens.map((contagem) => [contagem.clientProfileId, Number(contagem.total)]));
 
   return listarClientesProfileSuportados().map((cliente) => {
     const existente = porCliente.get(cliente.clientId);
@@ -109,8 +119,27 @@ export async function listarClientProfilesDoUsuario(userId: string) {
       name: cliente.name,
       slug: cliente.slug,
       description: cliente.description,
+      itemCount: 0,
+      isConfigured: false,
       createdAt: new Date(0),
       updatedAt: new Date(0),
     };
+  }).map((perfil) => {
+    if (!perfil.id) {
+      return perfil;
+    }
+
+    const itemCount = totalPorPerfil.get(perfil.id) ?? 0;
+    return {
+      ...perfil,
+      itemCount,
+      isConfigured: itemCount > 0,
+    };
+  }).sort((perfilA, perfilB) => {
+    if (perfilA.isConfigured !== perfilB.isConfigured) {
+      return perfilA.isConfigured ? -1 : 1;
+    }
+
+    return perfilA.name.localeCompare(perfilB.name, 'pt-BR');
   });
 }

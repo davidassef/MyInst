@@ -18,6 +18,8 @@ interface ClientProfile {
   clientId: string;
   name: string;
   description: string | null;
+  itemCount?: number;
+  isConfigured?: boolean;
 }
 
 interface ItemGlobal {
@@ -64,6 +66,11 @@ export function ClientProfilePage() {
     setBodyEditado(selecionado.body);
     setTagsEditadas(selecionado.tags.join(', '));
   }, [selecionado]);
+
+  useEffect(() => {
+    if (selecionado || items.length === 0) return;
+    setSelecionado(items[0]);
+  }, [items, selecionado]);
 
   const itensFiltrados = useMemo(() => {
     return items.filter((item) => {
@@ -136,6 +143,9 @@ export function ClientProfilePage() {
           <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Client Profile</p>
           <h1 className="mt-2 text-3xl font-semibold text-white">{profile?.name || clientId}</h1>
           <p className="mt-2 text-sm text-slate-400">{profile?.description}</p>
+          <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-500">
+            {items.length} item(ns) global(is)
+          </p>
         </div>
       </div>
 

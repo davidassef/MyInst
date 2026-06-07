@@ -829,6 +829,8 @@ describe('MyInst API', () => {
           expect.objectContaining({
             clientId: 'codex',
             slug: 'codex',
+            itemCount: 0,
+            isConfigured: false,
           }),
         ]),
       );
@@ -868,6 +870,25 @@ describe('MyInst API', () => {
           expect.objectContaining({
             slug: 'infra-local-global',
             type: 'instruction',
+          }),
+        ]),
+      );
+    });
+
+    it('GET /client-profiles reflete quantidade de itens por cliente', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/client-profiles',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            clientId: 'codex',
+            itemCount: 1,
+            isConfigured: true,
           }),
         ]),
       );

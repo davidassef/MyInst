@@ -72,6 +72,8 @@ export interface ClientProfile {
   name: string;
   slug: string;
   description: string | null;
+  itemCount: number;
+  isConfigured: boolean;
   createdAt: string;
   updatedAt: string;
 }
