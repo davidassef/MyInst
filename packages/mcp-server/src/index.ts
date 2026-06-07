@@ -101,6 +101,9 @@ server.tool(
 
     return respostaTexto([
       `Diretório base: ${dir}`,
+      'Escopos:',
+      '  - global: configurações e skills do cliente na home do usuário, válidas para todos os projetos',
+      '  - project: configurações e skills nativas encontradas dentro do diretório analisado',
       '',
       'Clientes suportados:',
       JSON.stringify(clientesSuportados, null, 2),
@@ -527,9 +530,13 @@ function montarResumoTargets(targets: SyncTarget[]) {
 
   return [
     'Clientes detectados:',
-    ...targets.map((target) => (
-      `  - ${target.clientId} (${target.clientName}) [${target.scope}] suporte=${target.supportLevel} tipos=${target.supportedTypes.join(', ')} paths=${target.detectedPaths.join(', ')} itens≈${target.estimatedItemCount}`
-    )),
+    ...targets.map((target) => {
+      const descricaoEscopo = target.scope === 'global'
+        ? 'configuração global do cliente, compartilhada entre todos os projetos'
+        : 'configuração de projeto encontrada dentro do diretório analisado';
+
+      return `  - ${target.clientId} (${target.clientName}) [${target.scope}] ${descricaoEscopo}; suporte=${target.supportLevel}; tipos=${target.supportedTypes.join(', ')}; paths=${target.detectedPaths.join(', ')}; itens≈${target.estimatedItemCount}`;
+    }),
   ].join('\n');
 }
 
