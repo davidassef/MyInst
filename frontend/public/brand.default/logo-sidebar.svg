@@ -1,0 +1,18 @@
+<svg width="320" height="72" viewBox="0 0 320 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="2" width="68" height="68" rx="20" fill="#071019"/>
+  <rect x="5" y="5" width="62" height="62" rx="17" stroke="#5FC6D5" stroke-opacity="0.35" stroke-width="2"/>
+  <path d="M20 27L36 17L52 27V49L36 59L20 49V27Z" fill="url(#paint0_linear_0_1)"/>
+  <path d="M36 17V59" stroke="#D7F3F6" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M20 27L36 37L52 27" stroke="#D7F3F6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="31.5" y="34" width="9" height="13" rx="3" fill="#071019" stroke="#D7F3F6" stroke-width="1.8"/>
+  <circle cx="36" cy="40.5" r="1.8" fill="#A4EDF2"/>
+  <path d="M93 26H157.316" stroke="#5FC6D5" stroke-opacity="0.24"/>
+  <text x="92" y="34" fill="#F4FBFD" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="1.2">MYINST</text>
+  <text x="92" y="53" fill="#8AA6B1" font-family="Segoe UI, Arial, sans-serif" font-size="11" letter-spacing="2.4">SECURE CONTEXT VAULT</text>
+  <defs>
+    <linearGradient id="paint0_linear_0_1" x1="20" y1="17" x2="52" y2="59" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#163445"/>
+      <stop offset="1" stop-color="#0B1A25"/>
+    </linearGradient>
+  </defs>
+</svg>

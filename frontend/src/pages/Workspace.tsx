@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FolderOpen, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, FolderOpen, Pencil, Plus, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { gerarSlug } from '@/lib/slug';
 
@@ -67,22 +67,12 @@ export function WorkspacePage() {
       });
 
       setProjetos([...projetos, novo]);
-      setMostrarForm(false);
-      setFormCriacao(FORM_INICIAL);
-      setSlugCriacaoManual(false);
+      fecharCriacao();
     } catch (err) {
       setErroForm(err instanceof Error ? err.message : 'Erro ao criar projeto');
     } finally {
       setSalvando(false);
     }
-  }
-
-  function atualizarNomeCriacao(valor: string) {
-    setFormCriacao((atual) => ({
-      ...atual,
-      name: valor,
-      slug: slugCriacaoManual ? atual.slug : gerarSlug(valor),
-    }));
   }
 
   function iniciarEdicaoWorkspace() {
@@ -172,6 +162,14 @@ export function WorkspacePage() {
     }
   }
 
+  function atualizarNomeCriacao(valor: string) {
+    setFormCriacao((atual) => ({
+      ...atual,
+      name: valor,
+      slug: slugCriacaoManual ? atual.slug : gerarSlug(valor),
+    }));
+  }
+
   function atualizarNomeWorkspace(valor: string) {
     setFormEdicaoWorkspace((atual) => ({
       ...atual,
@@ -188,231 +186,270 @@ export function WorkspacePage() {
     }));
   }
 
-  return (
-    <div>
-      <div className="flex items-start gap-3 mb-6">
-        <Link to="/" className="text-zinc-400 hover:text-zinc-200 mt-1">
-          <ArrowLeft size={20} />
-        </Link>
+  function fecharCriacao() {
+    setMostrarForm(false);
+    setFormCriacao(FORM_INICIAL);
+    setSlugCriacaoManual(false);
+    setErroForm('');
+  }
 
-        <div className="flex-1">
-          {editandoWorkspace ? (
-            <form onSubmit={salvarWorkspace} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Nome</label>
-                  <input
-                    type="text"
-                    value={formEdicaoWorkspace.name}
-                    onChange={(e) => atualizarNomeWorkspace(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Slug</label>
-                  <input
-                    type="text"
-                    value={formEdicaoWorkspace.slug}
-                    onChange={(e) => {
+  return (
+    <div className="space-y-8">
+      <section className="grid gap-4 xl:grid-cols-[1.35fr_0.75fr]">
+        <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <Link to="/" className="mt-1 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-slate-400 transition hover:border-white/14 hover:text-white">
+                <ArrowLeft size={18} />
+              </Link>
+
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Workspace ativo</p>
+
+                {editandoWorkspace ? (
+                  <WorkspaceForm
+                    titulo="Editar workspace"
+                    form={formEdicaoWorkspace}
+                    erro={erroForm}
+                    salvando={salvando}
+                    onSubmit={salvarWorkspace}
+                    onNameChange={atualizarNomeWorkspace}
+                    onSlugChange={(valor) => {
                       setSlugWorkspaceManual(true);
-                      setFormEdicaoWorkspace((atual) => ({ ...atual, slug: gerarSlug(e.target.value) }));
+                      setFormEdicaoWorkspace((atual) => ({ ...atual, slug: gerarSlug(valor) }));
                     }}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-                    required
+                    onDescriptionChange={(valor) => setFormEdicaoWorkspace((atual) => ({ ...atual, description: valor }))}
+                    onCancel={cancelarEdicao}
+                    submitLabel="Salvar workspace"
+                    className="mt-4"
                   />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-zinc-400 mb-1">Descrição</label>
-                <input
-                  type="text"
-                  value={formEdicaoWorkspace.description}
-                  onChange={(e) => setFormEdicaoWorkspace((atual) => ({ ...atual, description: e.target.value }))}
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              {erroForm && <p className="text-sm text-red-400">{erroForm}</p>}
-              <div className="flex items-center gap-3">
-                <button type="submit" disabled={salvando} className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-colors">
-                  {salvando ? 'Salvando...' : 'Salvar'}
-                </button>
-                <button type="button" onClick={cancelarEdicao} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition-colors">
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-bold text-zinc-100">{workspace?.name ?? workspaceSlug}</h2>
-                  <button onClick={iniciarEdicaoWorkspace} className="text-zinc-500 hover:text-zinc-200 transition-colors">
-                    <Pencil size={16} />
-                  </button>
-                </div>
-                <p className="text-sm text-zinc-500 mt-1">{workspace?.slug ?? workspaceSlug}</p>
-                {workspace?.description && <p className="text-sm text-zinc-400 mt-2">{workspace.description}</p>}
+                ) : (
+                  <>
+                    <div className="mt-3 flex items-center gap-3">
+                      <h1 className="text-3xl font-semibold text-white md:text-4xl">
+                        {workspace?.name ?? workspaceSlug}
+                      </h1>
+                      <button
+                        onClick={iniciarEdicaoWorkspace}
+                        className="rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-slate-400 transition hover:border-white/14 hover:text-white"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    </div>
+
+                    <p className="mt-3 text-xs uppercase tracking-[0.22em] text-slate-500">
+                      {workspace?.slug ?? workspaceSlug}
+                    </p>
+                    <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-400">
+                      {workspace?.description || 'Use este workspace para agrupar projetos que compartilham contexto, convenções e ciclos de sincronização.'}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-zinc-200">Projetos</h3>
+        <div className="rounded-[28px] border border-white/8 bg-slate-950/45 p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-400/8">
+              <ShieldCheck size={18} className="text-cyan-100" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Resumo do contexto</p>
+              <p className="mt-1 text-sm text-slate-200">{projetos.length} projeto(s) neste workspace</p>
+            </div>
+          </div>
+          <p className="mt-5 text-sm leading-7 text-slate-400">
+            O fallback oficial do MyInst continua sendo workspace default e projeto default, mas você já pode organizar múltiplos contextos sem criar novas chaves por dispositivo.
+          </p>
+        </div>
+      </section>
+
+      <section className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Projetos do workspace</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Projetos sincronizáveis</h2>
+        </div>
+
         <button
           onClick={() => {
             setMostrarForm(!mostrarForm);
             setErroForm('');
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/22 bg-cyan-300/12 px-4 py-3 text-sm font-medium text-cyan-50 transition hover:bg-cyan-300/18"
         >
           <Plus size={16} />
-          Novo Projeto
+          Novo projeto
         </button>
-      </div>
+      </section>
 
       {mostrarForm && (
-        <form onSubmit={criarProjeto} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-zinc-400 mb-1">Nome</label>
-              <input
-                type="text"
-                value={formCriacao.name}
-                onChange={(e) => atualizarNomeCriacao(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-zinc-400 mb-1">Slug</label>
-              <input
-                type="text"
-                value={formCriacao.slug}
-                onChange={(e) => {
-                  setSlugCriacaoManual(true);
-                  setFormCriacao((atual) => ({ ...atual, slug: gerarSlug(e.target.value) }));
-                }}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-                required
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1">Descrição</label>
-            <input
-              type="text"
-              value={formCriacao.description}
-              onChange={(e) => setFormCriacao((atual) => ({ ...atual, description: e.target.value }))}
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          {erroForm && <p className="text-sm text-red-400">{erroForm}</p>}
-          <div className="flex items-center gap-3">
-            <button type="submit" disabled={salvando} className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-colors">
-              {salvando ? 'Salvando...' : 'Criar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMostrarForm(false);
-                setFormCriacao(FORM_INICIAL);
-                setSlugCriacaoManual(false);
-                setErroForm('');
-              }}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
+        <WorkspaceForm
+          titulo="Criar projeto"
+          form={formCriacao}
+          erro={erroForm}
+          salvando={salvando}
+          onSubmit={criarProjeto}
+          onNameChange={atualizarNomeCriacao}
+          onSlugChange={(valor) => {
+            setSlugCriacaoManual(true);
+            setFormCriacao((atual) => ({ ...atual, slug: gerarSlug(valor) }));
+          }}
+          onDescriptionChange={(valor) => setFormCriacao((atual) => ({ ...atual, description: valor }))}
+          onCancel={fecharCriacao}
+          submitLabel="Criar projeto"
+        />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {projetos.map((projeto) => {
           const estaEditando = editandoProjetoId === projeto.id;
 
           return (
-            <div key={projeto.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+            <article key={projeto.id} className="rounded-[26px] border border-white/8 bg-white/[0.03] p-5 transition hover:border-white/14 hover:bg-white/[0.05]">
               {estaEditando ? (
-                <form onSubmit={salvarProjeto} className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-1">Nome</label>
-                    <input
-                      type="text"
-                      value={formEdicaoProjeto.name}
-                      onChange={(e) => atualizarNomeProjeto(e.target.value)}
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-1">Slug</label>
-                    <input
-                      type="text"
-                      value={formEdicaoProjeto.slug}
-                      onChange={(e) => {
-                        setSlugProjetoManual(true);
-                        setFormEdicaoProjeto((atual) => ({ ...atual, slug: gerarSlug(e.target.value) }));
-                      }}
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-1">Descrição</label>
-                    <input
-                      type="text"
-                      value={formEdicaoProjeto.description}
-                      onChange={(e) => setFormEdicaoProjeto((atual) => ({ ...atual, description: e.target.value }))}
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  {erroForm && <p className="text-sm text-red-400">{erroForm}</p>}
-                  <div className="flex items-center gap-2">
-                    <button type="submit" disabled={salvando} className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-colors">
-                      {salvando ? 'Salvando...' : 'Salvar'}
-                    </button>
-                    <button type="button" onClick={cancelarEdicao} className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition-colors">
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
+                <WorkspaceForm
+                  titulo="Editar projeto"
+                  form={formEdicaoProjeto}
+                  erro={erroForm}
+                  salvando={salvando}
+                  onSubmit={salvarProjeto}
+                  onNameChange={atualizarNomeProjeto}
+                  onSlugChange={(valor) => {
+                    setSlugProjetoManual(true);
+                    setFormEdicaoProjeto((atual) => ({ ...atual, slug: gerarSlug(valor) }));
+                  }}
+                  onDescriptionChange={(valor) => setFormEdicaoProjeto((atual) => ({ ...atual, description: valor }))}
+                  onCancel={cancelarEdicao}
+                  submitLabel="Salvar projeto"
+                />
               ) : (
-                <div className="flex items-start justify-between gap-3">
-                  <Link
-                    to={`/workspaces/${workspaceSlug}/projetos/${projeto.slug}`}
-                    className="flex items-start gap-3 group min-w-0"
-                  >
-                    <FolderOpen size={20} className="text-blue-400 mt-0.5" />
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-zinc-100 group-hover:text-blue-400 transition-colors">
-                        {projeto.name}
-                      </h3>
-                      <p className="text-xs text-zinc-500 mt-1">{projeto.slug}</p>
-                      {projeto.description && <p className="text-sm text-zinc-500 mt-2">{projeto.description}</p>}
-                      {projeto.isDefault && (
-                        <span className="inline-block mt-2 text-xs px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded">
-                          padrão
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                  <button
-                    onClick={() => iniciarEdicaoProjeto(projeto)}
-                    className="text-zinc-500 hover:text-zinc-200 transition-colors"
-                    aria-label={`Editar ${projeto.name}`}
-                  >
-                    <Pencil size={16} />
-                  </button>
+                <div className="flex h-full flex-col">
+                  <div className="flex items-start justify-between gap-4">
+                    <Link
+                      to={`/workspaces/${workspaceSlug}/projetos/${projeto.slug}`}
+                      className="group min-w-0 flex-1"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-400/8">
+                          <FolderOpen size={18} className="text-cyan-100" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="truncate text-lg font-semibold text-white transition group-hover:text-cyan-200">
+                              {projeto.name}
+                            </h3>
+                            {projeto.isDefault && (
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                                default
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">{projeto.slug}</p>
+                        </div>
+                      </div>
+                    </Link>
+
+                    <button
+                      onClick={() => iniciarEdicaoProjeto(projeto)}
+                      className="rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-slate-400 transition hover:border-white/14 hover:text-white"
+                      aria-label={`Editar ${projeto.name}`}
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  </div>
+
+                  <p className="mt-5 flex-1 text-sm leading-7 text-slate-400">
+                    {projeto.description || 'Projeto pronto para receber imports, pulls e sincronização local-first a partir do MCP.'}
+                  </p>
                 </div>
               )}
-            </div>
+            </article>
           );
         })}
-      </div>
+      </section>
     </div>
+  );
+}
+
+function WorkspaceForm({
+  titulo,
+  form,
+  erro,
+  salvando,
+  onSubmit,
+  onNameChange,
+  onSlugChange,
+  onDescriptionChange,
+  onCancel,
+  submitLabel,
+  className = '',
+}: {
+  titulo: string;
+  form: Formulario;
+  erro: string;
+  salvando: boolean;
+  onSubmit: (event: React.FormEvent) => Promise<void> | void;
+  onNameChange: (valor: string) => void;
+  onSlugChange: (valor: string) => void;
+  onDescriptionChange: (valor: string) => void;
+  onCancel: () => void;
+  submitLabel: string;
+  className?: string;
+}) {
+  return (
+    <form onSubmit={onSubmit} className={`rounded-[26px] border border-white/10 bg-black/20 p-5 ${className}`}>
+      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{titulo}</p>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <CampoForm label="Nome">
+          <input type="text" value={form.name} onChange={(e) => onNameChange(e.target.value)} className="vault-input" required />
+        </CampoForm>
+        <CampoForm label="Slug">
+          <input type="text" value={form.slug} onChange={(e) => onSlugChange(e.target.value)} className="vault-input" required />
+        </CampoForm>
+      </div>
+
+      <CampoForm label="Descrição" className="mt-4">
+        <input type="text" value={form.description} onChange={(e) => onDescriptionChange(e.target.value)} className="vault-input" />
+      </CampoForm>
+
+      {erro && <p className="mt-4 text-sm text-red-300">{erro}</p>}
+
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={salvando}
+          className="rounded-2xl border border-cyan-300/22 bg-cyan-300/12 px-4 py-3 text-sm font-medium text-cyan-50 transition hover:bg-cyan-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {salvando ? 'Salvando...' : submitLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300 transition hover:border-white/14 hover:bg-white/[0.06]"
+        >
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CampoForm({
+  label,
+  children,
+  className = '',
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-2 block text-sm text-slate-400">{label}</span>
+      {children}
+    </label>
   );
 }

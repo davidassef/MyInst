@@ -5,14 +5,28 @@ import { z } from 'zod';
 import { MyInstClient } from './client/index.js';
 import { aplicarConteudo } from './applier/index.js';
 import type { ConflictStrategy } from './applier/index.js';
-import { lerConteudoLocal } from './reader/index.js';
-import { importarDiretorio, detectarNomeRepositorio } from './importer/index.js';
-import { detectarEstruturasConhecidas } from './detector/index.js';
+import { detectarNomeRepositorio } from './importer/index.js';
 import { montarPreviewPull } from './pull-preview.js';
+import {
+  exportarParaClientesNativos,
+  importarTargetsDetectados,
+  listarSyncTargets,
+  obterClientesSuportados,
+  resolverSelecaoSync,
+  type EscopoSync,
+  type EscritaCliente,
+  type FormatoPull,
+  type ItemSincronizavel,
+  type SyncTarget,
+  type TipoSincronizavel,
+} from './sync-targets/index.js';
 
 const MYINST_VERSION = '0.1.0-beta.1';
 const MYINST_API_KEY = process.env.MYINST_API_KEY;
 const MYINST_SERVER = process.env.MYINST_SERVER || 'http://localhost:3000';
+const SCOPES_SYNC = ['project', 'global', 'all'] as const;
+const FORMATOS_PULL = ['myinst', 'native'] as const;
+const TIPOS_CANONICOS = ['skill', 'instruction', 'mcp_config', 'agent', 'hook', 'memory', 'snippet'] as const;
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log([
@@ -73,20 +87,52 @@ server.tool(
 );
 
 server.tool(
+  'myinst_list_sync_targets',
+  'Detecta clientes locais sincronizáveis e mostra escopo, paths, tipos suportados e nível de suporte antes de importar, exportar ou sincronizar',
+  {
+    sourceDir: z.string().describe('Diretório base a partir do qual o MyInst deve detectar clientes e estruturas').optional(),
+    scope: z.enum(SCOPES_SYNC).describe('Escopo da descoberta: project, global ou all').optional(),
+    clients: z.array(z.string()).describe('Filtra a descoberta para clientes específicos').optional(),
+  },
+  async ({ sourceDir, scope, clients }) => {
+    const dir = sourceDir || process.cwd();
+    const targets = await listarSyncTargets(dir, scope, clients);
+    const clientesSuportados = obterClientesSuportados();
+
+    return respostaTexto([
+      `Diretório base: ${dir}`,
+      '',
+      'Clientes suportados:',
+      JSON.stringify(clientesSuportados, null, 2),
+      '',
+      targets.length === 0
+        ? 'Nenhum cliente sincronizável foi detectado.'
+        : `Clientes detectados (${targets.length} alvo(s)):\n${JSON.stringify(targets, null, 2)}`,
+    ].join('\n'));
+  },
+);
+
+server.tool(
   'myinst_pull',
-  'Materializa o vault MyInst no projeto local, instala .claude/MYINST.md e prepara o fluxo pull -> trabalho local -> push',
+  'Materializa o vault MyInst localmente. No formato canônico, instala .claude/MYINST.md; no formato native, exporta para os caminhos nativos dos clientes selecionados.',
   {
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto para puxar (omita para "default")').optional(),
-    types: z.array(z.string()).describe('Tipos de conteúdo para puxar (skill, instruction, mcp_config, agent, hook, memory)').optional(),
+    types: z.array(z.string()).describe('Tipos de conteúdo para puxar').optional(),
     tags: z.array(z.string()).describe('Filtrar por tags de modelo/provider').optional(),
     model: z.string().describe('Nome do modelo para auto-detectar perfil e aplicar tags (ex: claude-opus-4)').optional(),
     dryRun: z.boolean().describe('Apenas mostra o que seria aplicado sem escrever arquivos').optional(),
     targetDir: z.string().describe('Diretório alvo para aplicar as configs (padrão: diretório atual)').optional(),
-    conflictStrategy: z.enum(['overwrite', 'prefix', 'skip']).describe('O que fazer quando arquivo local já existe: overwrite (substitui), prefix (cria vault-<slug>), skip (ignora)').optional(),
+    conflictStrategy: z.enum(['overwrite', 'prefix', 'skip']).describe('O que fazer quando arquivo local já existe').optional(),
+    clients: z.array(z.string()).describe('Clientes nativos alvo ao usar targetFormat native').optional(),
+    scope: z.enum(SCOPES_SYNC).describe('Escopo de descoberta para exportação nativa').optional(),
+    targetFormat: z.enum(FORMATOS_PULL).describe('myinst materializa o formato canônico; native escreve no formato do cliente').optional(),
   },
-  async ({ workspace, project, types, tags, model, dryRun, targetDir, conflictStrategy }) => {
+  async ({ workspace, project, types, tags, model, dryRun, targetDir, conflictStrategy, clients, scope, targetFormat }) => {
     const slug = project || 'default';
+    const dir = targetDir || process.cwd();
+    const strategy: ConflictStrategy = conflictStrategy || 'overwrite';
+    const formato: FormatoPull = targetFormat || 'myinst';
 
     const modelName = model || process.env.MYINST_MODEL;
     let tagsFinais = tags || [];
@@ -106,37 +152,64 @@ server.tool(
       tags: tagsFinais.length > 0 ? tagsFinais : undefined,
     });
 
-    if (dryRun) {
-      return {
-        content: [{
-          type: 'text',
-          text: montarPreviewPull(resultado.items),
-        }],
-      };
+    if (formato === 'myinst') {
+      if (dryRun) {
+        return respostaTexto([
+          montarPreviewPull(resultado.items),
+          '',
+          `.claude/MYINST.md também seria ${await preverAcaoGuiaMyInst(dir, strategy)}.`,
+        ].join('\n'));
+      }
+
+      const aplicados = await aplicarConteudo(resultado.items, dir, strategy);
+      const criados = aplicados.filter((a) => a.status === 'created');
+      const sobrescritos = aplicados.filter((a) => a.status === 'overwritten');
+      const prefixados = aplicados.filter((a) => a.status === 'prefixed');
+      const ignorados = aplicados.filter((a) => a.status === 'skipped');
+      const linhas = [`${aplicados.length} item(ns) processados em ${dir}:`];
+
+      if (criados.length > 0) linhas.push(`  - Criados: ${criados.length}`);
+      if (sobrescritos.length > 0) linhas.push(`  - Substituídos: ${sobrescritos.length}`);
+      if (prefixados.length > 0) linhas.push(`  - Com prefixo (vault-): ${prefixados.length}`);
+      if (ignorados.length > 0) linhas.push(`  - Ignorados (já existem): ${ignorados.length}`);
+
+      linhas.push('');
+      for (const aplicado of aplicados.filter((item) => item.status !== 'skipped')) {
+        linhas.push(`  [${aplicado.type}] ${aplicado.title} → ${aplicado.path}`);
+      }
+
+      return respostaTexto(linhas.join('\n'));
     }
 
-    const dir = targetDir || process.cwd();
-    const strategy: ConflictStrategy = conflictStrategy || 'overwrite';
-    const aplicados = await aplicarConteudo(resultado.items, dir, strategy);
-
-    const criados = aplicados.filter((a) => a.status === 'created');
-    const sobrescritos = aplicados.filter((a) => a.status === 'overwritten');
-    const prefixados = aplicados.filter((a) => a.status === 'prefixed');
-    const ignorados = aplicados.filter((a) => a.status === 'skipped');
-
-    const linhas = [`${aplicados.length} item(ns) processados em ${dir}:`];
-    if (criados.length > 0) linhas.push(`  - Criados: ${criados.length}`);
-    if (sobrescritos.length > 0) linhas.push(`  - Substituídos: ${sobrescritos.length}`);
-    if (prefixados.length > 0) linhas.push(`  - Com prefixo (vault-): ${prefixados.length}`);
-    if (ignorados.length > 0) linhas.push(`  - Ignorados (já existem): ${ignorados.length}`);
-    linhas.push('');
-    for (const a of aplicados.filter((x) => x.status !== 'skipped')) {
-      linhas.push(`  [${a.type}] ${a.title} → ${a.path}`);
+    const resolucao = await resolverSelecaoSync(dir, scope, clients);
+    if (resolucao.requiresClientSelection) {
+      return respostaSelecaoNecessaria(dir, scope, resolucao.availableTargets, 'pull', 'targetFormat: "native"');
     }
 
-    return {
-      content: [{ type: 'text', text: linhas.join('\n') }],
-    };
+    if (resolucao.selectedTargets.length === 0) {
+      return respostaTexto(montarMensagemSemClientes(dir, scope, clients));
+    }
+
+    const exportacao = await exportarParaClientesNativos(
+      dir,
+      normalizarItensVault(resultado.items),
+      scope,
+      [...new Set(resolucao.selectedTargets.map((target) => target.clientId))],
+    );
+
+      if (dryRun) {
+      return respostaTexto([
+        `[DRY RUN] Exportação nativa a partir do projeto "${slug}" para ${dir}`,
+        montarResumoTargets(exportacao.targets),
+        montarResumoDryRunNative(exportacao.targets, resultado.items),
+      ].join('\n\n'));
+    }
+
+    return respostaTexto([
+      `Pull nativo concluído para projeto "${slug}" em ${dir}.`,
+      montarResumoTargets(exportacao.targets),
+      montarResumoEscritaNativa(exportacao.results),
+    ].join('\n\n'));
   },
 );
 
@@ -152,212 +225,287 @@ server.tool(
   async ({ workspace, project, query, type }) => {
     const filtrados = await client.buscarConteudo({ query, workspace, project, type });
 
-    return {
-      content: [{
-        type: 'text',
-        text: filtrados.length === 0
-          ? `Nenhum resultado para "${query}"`
-          : `${filtrados.length} resultado(s):\n${JSON.stringify(filtrados.map((i) => ({ type: i.type, title: i.title, slug: i.slug, tags: i.tags, project: i.project_slug })), null, 2)}`,
-      }],
-    };
+    return respostaTexto(
+      filtrados.length === 0
+        ? `Nenhum resultado para "${query}"`
+        : `${filtrados.length} resultado(s):\n${JSON.stringify(filtrados.map((item) => ({
+          type: item.type,
+          title: item.title,
+          slug: item.slug,
+          tags: item.tags,
+          project: item.project_slug,
+          workspace: item.workspace_slug,
+        })), null, 2)}`,
+    );
   },
 );
 
 server.tool(
   'myinst_status',
-  'Verifica o que mudou no vault desde o último sync',
+  'Compara temporalmente o vault e informa o que mudou desde o último sync conhecido',
   {
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto').optional(),
-    since: z.string().describe('Data ISO para verificar mudanças desde (ex: 2025-01-01T00:00:00Z)').optional(),
+    since: z.string().describe('Data ISO para verificar mudanças desde').optional(),
   },
   async ({ workspace, project, since }) => {
     const slug = project || 'default';
     const status = await client.status(slug, since, workspace);
 
-    return {
-      content: [{
-        type: 'text',
-        text: `${status.changedCount} item(ns) alterado(s) desde ${since || 'sempre'}:\n${JSON.stringify(status.items, null, 2)}`,
-      }],
-    };
+    return respostaTexto(`${status.changedCount} item(ns) alterado(s) desde ${since || 'sempre'}:\n${JSON.stringify(status.items, null, 2)}`);
   },
 );
 
 server.tool(
   'myinst_push',
-  'Sincroniza alterações locais de .claude/, .codex/, AGENTS.md, CLAUDE.md e .mcp.json de volta para o vault MyInst',
+  'Sincroniza alterações locais detectadas em clientes suportados de volta para o vault MyInst. Prioriza formatos nativos conhecidos e ignora caches e runtime interno.',
   {
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto destino (omita para "default")').optional(),
     sourceDir: z.string().describe('Diretório fonte do projeto ou da configuração global (padrão: diretório atual)').optional(),
-    types: z.array(z.string()).describe('Tipos de conteúdo para enviar (skill, agent, memory, snippet, hook, instruction, mcp_config)').optional(),
+    types: z.array(z.string()).describe('Tipos de conteúdo para enviar').optional(),
     dryRun: z.boolean().describe('Apenas mostra o que seria enviado sem efetuar push').optional(),
+    clients: z.array(z.string()).describe('Clientes a sincronizar').optional(),
+    scope: z.enum(SCOPES_SYNC).describe('Escopo de descoberta: project, global ou all').optional(),
   },
-  async ({ workspace, project, sourceDir, types, dryRun }) => {
+  async ({ workspace, project, sourceDir, types, dryRun, clients, scope }) => {
     const slug = project || 'default';
     const dir = sourceDir || process.cwd();
-    const estruturas = await detectarEstruturasConhecidas(dir);
+    const resolucao = await resolverSelecaoSync(dir, scope, clients);
 
-    let itens = await lerConteudoLocal(dir);
+    if (resolucao.requiresClientSelection) {
+      return respostaSelecaoNecessaria(dir, scope, resolucao.availableTargets, 'push');
+    }
 
+    if (resolucao.selectedTargets.length === 0) {
+      return respostaTexto(montarMensagemSemClientes(dir, scope, clients));
+    }
+
+    const importacao = await importarTargetsDetectados(
+      dir,
+      scope,
+      [...new Set(resolucao.selectedTargets.map((target) => target.clientId))],
+    );
+
+    let itens = importacao.items;
     if (types && types.length > 0) {
       itens = itens.filter((item) => types.includes(item.type));
     }
 
     if (itens.length === 0) {
-      return {
-        content: [{
-          type: 'text',
-          text: montarMensagemSemConteudo(dir, estruturas.encontrados),
-        }],
-      };
+      return respostaTexto([
+        `Nenhum conteúdo sincronizável encontrado em ${dir}.`,
+        montarResumoTargets(importacao.targets),
+        'O MyInst aceita apenas estruturas conhecidas por adapter e ignora caches, plugins empacotados, sessions e node_modules.',
+      ].join('\n'));
     }
 
     if (dryRun) {
       const preview = itens.map((item) => ({ type: item.type, title: item.title, slug: item.slug }));
-      return {
-        content: [{
-          type: 'text',
-          text: [
-            `[DRY RUN] Origem detectada em ${dir}`,
-            montarResumoEstruturas(estruturas.encontrados),
-            `Tipos encontrados: ${montarResumoTipos(itens)}`,
-            '',
-            `${itens.length} item(ns) seriam enviados:`,
-            JSON.stringify(preview, null, 2),
-          ].join('\n'),
-        }],
-      };
+      return respostaTexto([
+        `[DRY RUN] Origem detectada em ${dir}`,
+        montarResumoTargets(importacao.targets),
+        `Tipos encontrados: ${montarResumoTipos(itens)}`,
+        '',
+        `${itens.length} item(ns) seriam enviados:`,
+        JSON.stringify(preview, null, 2),
+      ].join('\n'));
     }
 
     const resultado = await client.push({ workspace, project: slug, items: itens });
-
-    return {
-      content: [{
-        type: 'text',
-        text: [
-          `Push concluído para projeto "${slug}" a partir de ${dir}:`,
-          montarResumoEstruturas(estruturas.encontrados),
-          `Tipos sincronizados: ${montarResumoTipos(itens)}`,
-          `  - Criados: ${resultado.created.length} (${resultado.created.join(', ') || 'nenhum'})`,
-          `  - Atualizados: ${resultado.updated.length} (${resultado.updated.join(', ') || 'nenhum'})`,
-        ].join('\n'),
-      }],
-    };
+    return respostaTexto([
+      `Push concluído para projeto "${slug}" a partir de ${dir}:`,
+      montarResumoTargets(importacao.targets),
+      `Tipos sincronizados: ${montarResumoTipos(itens)}`,
+      `  - Criados: ${resultado.created.length} (${resultado.created.join(', ') || 'nenhum'})`,
+      `  - Atualizados: ${resultado.updated.length} (${resultado.updated.join(', ') || 'nenhum'})`,
+    ].join('\n'));
   },
 );
 
 server.tool(
   'myinst_import',
-  'Importa conteúdo de diretórios com estruturas conhecidas de agente, incluindo .claude/, .codex/, AGENTS.md, CLAUDE.md e .mcp.json. Organiza automaticamente em pasta com o nome do repositório.',
+  'Importa conteúdo de clientes conhecidos para o vault MyInst. Descobre os clientes locais, exige seleção quando houver múltiplas origens e organiza globais por pasta previsível.',
   {
     sourceDir: z.string().describe('Diretório fonte para identificar e importar estruturas conhecidas de agente'),
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto destino (omita para "default")').optional(),
-    folderName: z.string().describe('Nome da pasta destino (omita para auto-detectar via git remote ou nome da pasta)').optional(),
+    folderName: z.string().describe('Nome base da pasta destino para imports de projeto').optional(),
     dryRun: z.boolean().describe('Apenas mostra o que seria importado sem efetuar push').optional(),
     overwrite: z.boolean().describe('Sobrescrever itens existentes (padrão: false)').optional(),
+    clients: z.array(z.string()).describe('Clientes a importar').optional(),
+    scope: z.enum(SCOPES_SYNC).describe('Escopo de descoberta: project, global ou all').optional(),
   },
-  async ({ sourceDir, workspace, project, folderName, dryRun, overwrite }) => {
+  async ({ sourceDir, workspace, project, folderName, dryRun, overwrite, clients, scope }) => {
     const slug = project || 'default';
-    const estruturas = await detectarEstruturasConhecidas(sourceDir);
-    const itens = await importarDiretorio(sourceDir);
+    const resolucao = await resolverSelecaoSync(sourceDir, scope, clients);
 
-    if (itens.length === 0) {
-      return {
-        content: [{
-          type: 'text',
-          text: montarMensagemSemConteudo(sourceDir, estruturas.encontrados),
-        }],
-      };
+    if (resolucao.requiresClientSelection) {
+      return respostaSelecaoNecessaria(sourceDir, scope, resolucao.availableTargets, 'import');
+    }
+
+    if (resolucao.selectedTargets.length === 0) {
+      return respostaTexto(montarMensagemSemClientes(sourceDir, scope, clients));
+    }
+
+    const importacao = await importarTargetsDetectados(
+      sourceDir,
+      scope,
+      [...new Set(resolucao.selectedTargets.map((target) => target.clientId))],
+    );
+
+    if (importacao.items.length === 0) {
+      return respostaTexto([
+        `Nenhum conteúdo sincronizável encontrado em ${sourceDir}.`,
+        montarResumoTargets(importacao.targets),
+        'O MyInst procura apenas estruturas conhecidas dos clientes suportados.',
+      ].join('\n'));
     }
 
     const nomeRepo = folderName || detectarNomeRepositorio(sourceDir);
+    const grupos = agruparImportacaoPorFolder(importacao.targets, importacao.items, nomeRepo);
 
     if (dryRun) {
-      const preview = itens.map((item) => ({ type: item.type, title: item.title, slug: item.slug }));
-      return {
-        content: [{
-          type: 'text',
-          text: [
-            `[DRY RUN] Origem detectada em ${sourceDir}`,
-            montarResumoEstruturas(estruturas.encontrados),
-            `Tipos encontrados: ${montarResumoTipos(itens)}`,
-            '',
-            `${itens.length} item(ns) seriam importados para pasta "${nomeRepo}":`,
-            JSON.stringify(preview, null, 2),
-          ].join('\n'),
-        }],
-      };
+      return respostaTexto([
+        `[DRY RUN] Origem detectada em ${sourceDir}`,
+        montarResumoTargets(importacao.targets),
+        `Tipos encontrados: ${montarResumoTipos(importacao.items)}`,
+        '',
+        'Pastas de destino previstas:',
+        JSON.stringify(grupos.map((grupo) => ({
+          folderSlug: grupo.folderSlug,
+          clientId: grupo.clientId,
+          scope: grupo.scope,
+          itens: grupo.items.map((item) => ({ type: item.type, slug: item.slug })),
+        })), null, 2),
+      ].join('\n'));
     }
 
     const pastasExistentes = await client.listarPastas(slug, workspace);
-    const pastaExistente = pastasExistentes.find((p) => p.slug === nomeRepo);
-
-    if (!pastaExistente) {
-      const nomeFormatado = nomeRepo
-        .split('-')
-        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-        .join(' ');
-      await client.criarPasta(slug, { name: nomeFormatado, slug: nomeRepo }, workspace);
-    }
-
     const existentes = await client.pull({ workspace, project: slug });
-    const slugsExistentes = new Set(existentes.items.map((i) => `${i.type}:${i.slug}`));
+    const slugsExistentes = new Set(existentes.items.map((item) => `${item.type}:${item.slug}`));
+    const linhas = [`Import concluído para projeto "${slug}" a partir de ${sourceDir}:`, montarResumoTargets(importacao.targets)];
 
-    const paraEnviar = [];
-    const ignorados = [];
+    for (const grupo of grupos) {
+      if (!pastasExistentes.some((pasta) => pasta.slug === grupo.folderSlug)) {
+        await client.criarPasta(slug, { name: formatarNomePasta(grupo.folderSlug), slug: grupo.folderSlug }, workspace);
+        pastasExistentes.push({
+          id: grupo.folderSlug,
+          name: formatarNomePasta(grupo.folderSlug),
+          slug: grupo.folderSlug,
+        });
+      }
 
-    for (const item of itens) {
-      const chave = `${item.type}:${item.slug}`;
-      if (slugsExistentes.has(chave) && !overwrite) {
-        ignorados.push(item);
-      } else {
+      const paraEnviar: ItemSincronizavel[] = [];
+      const ignorados: ItemSincronizavel[] = [];
+
+      for (const item of grupo.items) {
+        const chave = `${item.type}:${item.slug}`;
+        if (slugsExistentes.has(chave) && !overwrite) {
+          ignorados.push(item);
+          continue;
+        }
+
         paraEnviar.push(item);
       }
+
+      if (paraEnviar.length === 0) {
+        linhas.push(`  - ${grupo.folderSlug}: nenhum item novo (${ignorados.length} conflito(s))`);
+        continue;
+      }
+
+      const resultado = await client.push({
+        workspace,
+        project: slug,
+        folderSlug: grupo.folderSlug,
+        items: paraEnviar,
+      });
+
+      for (const item of paraEnviar) {
+        slugsExistentes.add(`${item.type}:${item.slug}`);
+      }
+
+      linhas.push(
+        `  - ${grupo.folderSlug}: ${paraEnviar.length} item(ns) importados (${montarResumoTipos(paraEnviar)})`,
+        `    criados=${resultado.created.length}, atualizados=${resultado.updated.length}, ignorados=${ignorados.length}`,
+      );
     }
 
-    if (paraEnviar.length === 0) {
-      const conflitos = ignorados.map((i) => `  - [${i.type}] ${i.slug}`).join('\n');
-      return {
-        content: [{
-          type: 'text',
-          text: [
-            `Nenhum item novo para importar a partir de ${sourceDir}.`,
-            montarResumoEstruturas(estruturas.encontrados),
-            `Tipos encontrados: ${montarResumoTipos(itens)}`,
-            `${ignorados.length} item(ns) já existem no vault:`,
-            conflitos,
-            '',
-            'Use overwrite: true para sobrescrever.',
-          ].join('\n'),
-        }],
-      };
-    }
-
-    const resultado = await client.push({ workspace, project: slug, folderSlug: nomeRepo, items: paraEnviar });
-
-    const linhas = [
-      `Import concluído para projeto "${slug}" → pasta "${nomeRepo}" a partir de ${sourceDir}:`,
-      montarResumoEstruturas(estruturas.encontrados),
-      `Tipos importados: ${montarResumoTipos(paraEnviar)}`,
-      `  - Criados: ${resultado.created.length} (${resultado.created.join(', ') || 'nenhum'})`,
-      `  - Atualizados: ${resultado.updated.length} (${resultado.updated.join(', ') || 'nenhum'})`,
-    ];
-
-    if (ignorados.length > 0) {
-      linhas.push(`  - Ignorados (já existem): ${ignorados.length} (${ignorados.map((i) => i.slug).join(', ')})`);
-    }
-
-    return {
-      content: [{ type: 'text', text: linhas.join('\n') }],
-    };
+    return respostaTexto(linhas.join('\n'));
   },
 );
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+function normalizarItensVault(items: Array<{
+  type: string;
+  slug: string;
+  title: string;
+  body: string;
+  metadata: Record<string, unknown>;
+  tags: string[];
+}>) {
+  return items
+    .filter((item): item is ItemSincronizavel => TIPOS_CANONICOS.includes(item.type as TipoSincronizavel))
+    .map((item) => ({
+      type: item.type as TipoSincronizavel,
+      slug: item.slug,
+      title: item.title,
+      body: item.body,
+      metadata: item.metadata,
+      tags: item.tags,
+    }));
+}
+
+function agruparImportacaoPorFolder(targets: SyncTarget[], items: ItemSincronizavel[], folderBase: string) {
+  const grupos = new Map<string, {
+    folderSlug: string;
+    clientId: string;
+    scope: SyncTarget['scope'];
+    items: ItemSincronizavel[];
+  }>();
+
+  for (const target of targets) {
+    const folderSlug = target.scope === 'global' ? `${target.clientId}-global` : folderBase;
+    const key = `${target.clientId}:${target.scope}:${folderSlug}`;
+    const grupoAtual = grupos.get(key);
+
+    if (!grupoAtual) {
+      grupos.set(key, {
+        folderSlug,
+        clientId: target.clientId,
+        scope: target.scope,
+        items: filtrarItensPorCliente(items, target.clientId),
+      });
+      continue;
+    }
+
+    grupoAtual.items = deduplicarItens([...grupoAtual.items, ...filtrarItensPorCliente(items, target.clientId)]);
+  }
+
+  return [...grupos.values()].filter((grupo) => grupo.items.length > 0);
+}
+
+function filtrarItensPorCliente(items: ItemSincronizavel[], clientId: string) {
+  if (clientId === 'claude' || clientId === 'codex') {
+    return items;
+  }
+
+  if (clientId === 'cursor' || clientId === 'opencode' || clientId === 'aider' || clientId === 'antigravity') {
+    return items.filter((item) => item.type === 'instruction' || item.type === 'mcp_config');
+  }
+
+  return items.filter((item) => item.type === 'instruction');
+}
+
+function deduplicarItens(items: ItemSincronizavel[]) {
+  const mapa = new Map<string, ItemSincronizavel>();
+  for (const item of items) {
+    mapa.set(`${item.type}:${item.slug}`, item);
+  }
+  return [...mapa.values()];
+}
 
 function montarResumoTipos(itens: Array<{ type: string }>) {
   const contagemPorTipo = new Map<string, number>();
@@ -372,21 +520,128 @@ function montarResumoTipos(itens: Array<{ type: string }>) {
     .join(', ');
 }
 
-function montarResumoEstruturas(estruturas: string[]) {
-  if (estruturas.length === 0) {
-    return 'Estruturas reconhecidas: nenhuma';
+function montarResumoTargets(targets: SyncTarget[]) {
+  if (targets.length === 0) {
+    return 'Clientes detectados: nenhum';
   }
 
-  return `Estruturas reconhecidas: ${estruturas.join(', ')}`;
+  return [
+    'Clientes detectados:',
+    ...targets.map((target) => (
+      `  - ${target.clientId} (${target.clientName}) [${target.scope}] suporte=${target.supportLevel} tipos=${target.supportedTypes.join(', ')} paths=${target.detectedPaths.join(', ')} itens≈${target.estimatedItemCount}`
+    )),
+  ].join('\n');
 }
 
-function montarMensagemSemConteudo(diretorio: string, estruturas: string[]) {
-  const linhas = [
-    `Nenhum conteúdo sincronizável encontrado em ${diretorio}.`,
-    montarResumoEstruturas(estruturas),
-    'O MyInst procura apenas estruturas conhecidas: .claude/, .codex/, AGENTS.md, CLAUDE.md e .mcp.json.',
-    'Caches, plugins empacotados, sessions e node_modules são ignorados.',
-  ];
+function montarResumoEscritaNativa(results: EscritaCliente[]) {
+  return results.map((result) => {
+    const linhas = [
+      `${result.clientName} [${result.scope}]`,
+      `  - escritos: ${result.written.length}`,
+    ];
 
-  return linhas.join('\n');
+    if (result.written.length > 0) {
+      for (const item of result.written) {
+        linhas.push(`    - [${item.type}] ${item.slug} → ${item.path}`);
+      }
+    }
+
+    if (result.ignored.length > 0) {
+      linhas.push(`  - ignorados: ${result.ignored.length}`);
+      for (const item of result.ignored) {
+        linhas.push(`    - [${item.type}] ${item.slug}: ${item.reason}`);
+      }
+    }
+
+    return linhas.join('\n');
+  }).join('\n\n');
+}
+
+function montarResumoDryRunNative(
+  targets: SyncTarget[],
+  items: Array<{ type: string; slug: string }>,
+) {
+  return targets.map((target) => {
+    const tiposSuportados = new Set(target.supportedTypes);
+    const compativeis = items.filter((item) => tiposSuportados.has(item.type as TipoSincronizavel));
+    const ignorados = items.filter((item) => !tiposSuportados.has(item.type as TipoSincronizavel));
+
+    return [
+      `${target.clientName} [${target.scope}]`,
+      `  - tipos suportados: ${target.supportedTypes.join(', ')}`,
+      `  - itens compatíveis: ${compativeis.length}`,
+      `  - itens ignorados por falta de suporte: ${ignorados.length}`,
+    ].join('\n');
+  }).join('\n\n');
+}
+
+function respostaSelecaoNecessaria(
+  dir: string,
+  scope: EscopoSync | undefined,
+  targets: SyncTarget[],
+  operacao: 'import' | 'push' | 'pull',
+  complemento?: string,
+) {
+  const comando = operacao === 'pull'
+    ? `Repita myinst_pull com clients: ["${targets[0]?.clientId ?? 'claude'}"]${complemento ? ` e ${complemento}` : ''}.`
+    : `Repita myinst_${operacao} com clients: ["${targets[0]?.clientId ?? 'claude'}"].`;
+
+  return {
+    content: [{
+      type: 'text' as const,
+      text: [
+        `Mais de um cliente sincronizável foi detectado em ${dir}.`,
+        `Escopo considerado: ${scope || 'all'}`,
+        montarResumoTargets(targets),
+        '',
+        comando,
+      ].join('\n'),
+    }],
+  };
+}
+
+function montarMensagemSemClientes(dir: string, scope: EscopoSync | undefined, clients?: string[]) {
+  return [
+    `Nenhum cliente sincronizável foi detectado em ${dir}.`,
+    `Escopo considerado: ${scope || 'all'}`,
+    clients?.length ? `Filtro de clientes: ${clients.join(', ')}` : 'Filtro de clientes: nenhum',
+    'Use myinst_list_sync_targets para inspecionar os paths reconhecidos antes de sincronizar.',
+  ].join('\n');
+}
+
+function formatarNomePasta(folderSlug: string) {
+  return folderSlug
+    .split('-')
+    .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
+    .join(' ');
+}
+
+async function preverAcaoGuiaMyInst(dir: string, strategy: ConflictStrategy) {
+  const { access, constants, readFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+
+  const caminho = join(dir, '.claude', 'MYINST.md');
+
+  try {
+    await access(caminho, constants.F_OK);
+  } catch {
+    return 'criado';
+  }
+
+  const conteudoAtual = await readFile(caminho, 'utf-8');
+  if (conteudoAtual.includes('<!-- myinst-managed: true -->')) {
+    return 'atualizado';
+  }
+
+  if (strategy === 'skip') {
+    return 'ignorado';
+  }
+
+  return 'criado como conflito controlado em .claude/vault-MYINST.md';
+}
+
+function respostaTexto(text: string) {
+  return {
+    content: [{ type: 'text' as const, text }],
+  };
 }

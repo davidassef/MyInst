@@ -1,6 +1,16 @@
 # MCP Server
 
-O `@myinst/mcp-server` é um servidor MCP que roda localmente na máquina do usuário, conectando qualquer cliente MCP (Claude Code, Cursor, VS Code, etc.) ao vault MyInst.
+O `@myinst/mcp-server` roda localmente na máquina do usuário e conecta clientes MCP ao vault MyInst hospedado.
+
+## Papel do pacote
+
+Ele existe para:
+
+- autenticar no backend com `MYINST_API_KEY`
+- listar workspaces e projetos
+- materializar conteúdo do vault localmente
+- importar estruturas conhecidas de clientes
+- sincronizar mudanças locais de volta
 
 ## Instalação
 
@@ -8,13 +18,17 @@ O `@myinst/mcp-server` é um servidor MCP que roda localmente na máquina do usu
 npm install -g @myinst/mcp-server
 ```
 
-O pacote expõe o binário `myinst-mcp`.
+Binário exposto:
+
+```bash
+myinst-mcp
+```
 
 ## Configuração
 
-Adicione ao seu arquivo de configuração MCP:
+### Codex
 
-### Codex (`C:\Users\seu-usuario\.codex\config.toml`)
+Arquivo: `C:\Users\seu-usuario\.codex\config.toml`
 
 ```toml
 [mcp_servers.myinst]
@@ -25,7 +39,7 @@ MYINST_API_KEY = "myinst_sua_key_aqui"
 MYINST_SERVER = "https://api-myinst.lotoscore.com.br"
 ```
 
-### Claude Code (`.mcp.json`)
+### Claude Code
 
 ```json
 {
@@ -41,119 +55,163 @@ MYINST_SERVER = "https://api-myinst.lotoscore.com.br"
 }
 ```
 
-### Cursor / VS Code
+### Cursor e outros clientes compatíveis
 
-Adicione nas configurações do MCP da extensão com os mesmos parâmetros.
+Use o mesmo binário e as mesmas variáveis de ambiente nos campos equivalentes do cliente.
 
-## Variáveis de Ambiente
+## Variáveis de ambiente
 
 | Variável | Obrigatória | Descrição |
 |----------|:-----------:|-----------|
-| `MYINST_API_KEY` | Sim | API key gerada no servidor |
-| `MYINST_SERVER` | Não | URL do servidor (padrão: `http://localhost:3000`; em produção hospedada use `https://api-myinst.lotoscore.com.br`) |
+| `MYINST_API_KEY` | Sim | API key da conta |
+| `MYINST_SERVER` | Não | URL da API MyInst. Em produção: `https://api-myinst.lotoscore.com.br` |
+| `MYINST_MODEL` | Não | modelo usado para match automático de perfil no pull |
 
-## Tools Disponíveis
+## Fluxo oficial
 
-## Fluxo padrão
+O fluxo padrão é local-first:
 
-O uso recomendado do MyInst MCP é local-first:
+1. `myinst_pull`
+2. trabalho local sobre arquivos reais
+3. `myinst_push`
 
-1. Use `myinst_pull` no início do trabalho para materializar o vault no projeto local.
-2. Trabalhe sobre os arquivos locais materializados ou existentes em `.claude/`, `.codex/`, `AGENTS.md`, `CLAUDE.md` e `.mcp.json`.
-3. Use `myinst_push` sempre que criar, editar, reescrever ou reorganizar skills, instructions, agents, hooks, memory, snippets ou configuracoes MCP.
-4. Use `myinst_search` apenas para descoberta pontual, quando ainda não souber qual conteúdo materializar.
+`myinst_search` continua disponível, mas como descoberta pontual.
 
-Todo `myinst_pull` cria ou atualiza `.claude/MYINST.md`, um guia operacional para o agente entender esse fluxo.
+Todo pull canônico cria ou atualiza `.claude/MYINST.md` para deixar esse contrato explícito para o agente.
 
-O `myinst_push` e o `myinst_import` reconhecem estruturas conhecidas de agentes, incluindo:
+## Descoberta multi-cliente
 
-- `.claude/skills`, `.claude/agents`, `.claude/memory`, `.claude/snippets`, `.claude/hooks`
-- `.claude/CLAUDE.md`, `*.rules.md` e `.claude/.mcp.json`
-- `.codex/skills/<slug>/SKILL.md` e `.codex/AGENTS.md`
-- `AGENTS.md`, `CLAUDE.md` e `.mcp.json` na raiz do projeto
+O MCP mantém um registro central de adapters com níveis de suporte.
 
-### myinst_list_projects
+Clientes desta fase:
 
-Lista todos os projetos do vault.
+| Cliente | Suporte | Escopo |
+|---------|---------|--------|
+| Claude Code | `full` | projeto |
+| Codex | `full` | projeto e global |
+| Cursor | `partial` | projeto e global |
+| Gemini CLI | `partial` | projeto e global |
+| OpenCode | `partial` | projeto e global |
+| Qwen Code | `partial` | projeto |
+| Aider | `partial` | projeto e global |
+| Antigravity | `experimental` | projeto e global |
 
-**Parâmetros:** nenhum
+Antes de sincronizar, use:
 
-**Exemplo de uso:**
-```
-"Liste meus projetos no MyInst"
-```
-
-### myinst_pull
-
-Materializa configurações do vault no diretório do projeto local e instala `.claude/MYINST.md`.
-
-**Parâmetros:**
-
-| Param | Tipo | Descrição |
-|-------|------|-----------|
-| `project` | string? | Slug do projeto (padrão: "default") |
-| `types` | string[]? | Tipos para puxar (skill, instruction, mcp_config, agent, hook, memory) |
-| `tags` | string[]? | Filtrar por tags de modelo/provider |
-| `dryRun` | boolean? | Apenas mostra o que seria aplicado |
-| `targetDir` | string? | Diretório alvo (padrão: diretório atual) |
-| `conflictStrategy` | string? | `overwrite`, `prefix` ou `skip` para conflitos locais |
-
-**Exemplo de uso:**
-```
-"Puxe minhas skills do projeto meu-saas filtradas por claude-opus"
+```text
+myinst_list_sync_targets
 ```
 
-**Mapeamento de arquivos:**
+Quando houver múltiplos clientes detectados e `clients` não for informado, o MCP não sincroniza silenciosamente. Ele retorna a lista encontrada e pede seleção explícita.
 
-| Tipo | Destino |
-|------|---------|
-| skill | `.claude/skills/{slug}.md` |
-| instruction | `.claude/CLAUDE.md` |
-| mcp_config | `.mcp.json` |
-| agent | `.claude/agents/{slug}.md` |
-| hook | `.claude/hook-{slug}.md` |
-| memory | `.claude/memory/{slug}.md` |
-| snippet | `.claude/snippets/{slug}.md` |
-| guia MyInst | `.claude/MYINST.md` |
+## Tools disponíveis
 
-### myinst_search
+### `myinst_list_workspaces`
 
-Busca conteúdo no vault por texto usando a busca full-text do servidor. Use para descoberta pontual; para trabalho recorrente, materialize com `myinst_pull`.
+Lista workspaces da conta autenticada.
 
-**Parâmetros:**
+### `myinst_list_projects`
 
-| Param | Tipo | Descrição |
-|-------|------|-----------|
-| `project` | string? | Slug do projeto (padrão: "default") |
-| `query` | string | Texto para buscar |
-| `type` | string? | Filtrar por tipo |
+Lista projetos do workspace informado ou do workspace default.
 
-### myinst_status
+### `myinst_list_sync_targets`
 
-Verifica o que mudou no vault desde o último sync.
+Detecta clientes locais disponíveis, escopo, paths conhecidos, tipos suportados e nível de suporte.
 
-**Parâmetros:**
+Parâmetros:
 
-| Param | Tipo | Descrição |
-|-------|------|-----------|
-| `project` | string? | Slug do projeto (padrão: "default") |
-| `since` | string? | Data ISO para verificar mudanças |
+- `sourceDir?`
+- `scope?`
+- `clients?`
 
-## Fluxo de Uso Típico
+### `myinst_pull`
 
-1. Registre-se no servidor MyInst
-2. Gere uma API key
-3. Configure o MCP server no seu cliente
-4. Use `myinst_pull` para materializar suas configs no projeto
-5. Trabalhe normalmente com os arquivos locais em `.claude/`
-6. Use `myinst_push` quando alterar ou criar conteúdo sincronizável
+Puxa conteúdo do vault.
 
-## Dry Run
+Parâmetros principais:
 
-Use `dryRun: true` para ver o que seria aplicado sem escrever arquivos:
+- `workspace?`
+- `project?`
+- `types?`
+- `tags?`
+- `model?`
+- `dryRun?`
+- `targetDir?`
+- `conflictStrategy?`
+- `clients?`
+- `scope?`
+- `targetFormat?`
 
-```
-"Faça um dry run do pull do projeto default com tag claude-opus"
-```
+Formatos:
 
-Retorna lista de itens que seriam aplicados com tipo, título e slug.
+- `myinst`: materializa o formato canônico do MyInst
+- `native`: exporta para os caminhos nativos dos clientes selecionados
+
+### `myinst_push`
+
+Lê estruturas conhecidas do diretório local e envia para o vault.
+
+Parâmetros principais:
+
+- `workspace?`
+- `project?`
+- `sourceDir?`
+- `types?`
+- `dryRun?`
+- `clients?`
+- `scope?`
+
+### `myinst_import`
+
+Importa estruturas locais para o vault, normalmente organizando globais em pastas previsíveis como:
+
+- `codex-global`
+- `cursor-global`
+- `gemini-global`
+
+Parâmetros principais:
+
+- `sourceDir`
+- `workspace?`
+- `project?`
+- `folderName?`
+- `dryRun?`
+- `overwrite?`
+- `clients?`
+- `scope?`
+
+### `myinst_search`
+
+Busca textual no vault para descoberta.
+
+### `myinst_status`
+
+Mostra mudanças temporais no vault desde uma data.
+
+## Estruturas reconhecidas
+
+Exemplos suportados nesta fase:
+
+- `.claude/skills`, `.claude/agents`, `.claude/memory`, `.claude/snippets`, `.claude/hooks`, `.claude/CLAUDE.md`, `.claude/.mcp.json`
+- `.codex/skills/<slug>/SKILL.md`, `.codex/AGENTS.md`, `.codex/.mcp.json`, `AGENTS.md`, `.mcp.json`
+- `.cursor/rules/*.mdc`, `.cursor/rules/*.md`, `.cursor/mcp.json`
+- `GEMINI.md`
+- `opencode.json`
+- `.qwen/AGENTS.md`
+- `.aider.conf.yml`, `CONVENTIONS.md`
+- `.antigravity`, `~/.gemini/antigravity-cli/settings.json`
+
+## Dry run
+
+Use `dryRun: true` para ver:
+
+- clientes detectados
+- tipos encontrados
+- itens compatíveis
+- itens ignorados por falta de suporte nativo
+
+## Observações
+
+- o formato canônico MyInst continua sendo o default operacional
+- exportação nativa não garante paridade total entre todos os clientes
+- clients experimentais retornam aviso explícito e não entram em sync silencioso

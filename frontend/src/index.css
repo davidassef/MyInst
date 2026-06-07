@@ -1,1 +1,64 @@
 @import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: #03070b;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #03070b;
+  color: #f5fbfd;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(95, 198, 213, 0.28);
+  color: #f8feff;
+}
+
+.vault-panel {
+  background:
+    linear-gradient(180deg, rgba(9, 15, 23, 0.88) 0%, rgba(5, 10, 15, 0.94) 100%);
+  backdrop-filter: blur(20px);
+}
+
+.vault-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 68px 68px;
+  mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 82%);
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.vault-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 0.85rem 1rem;
+  color: #f4fbfd;
+  outline: none;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.vault-input:focus {
+  border-color: rgba(95, 198, 213, 0.46);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 0 4px rgba(95, 198, 213, 0.08);
+}

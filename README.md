@@ -1,83 +1,88 @@
 # MyInst
 
-MyInst e um vault open source para armazenar, versionar e sincronizar instrucoes
-de IA entre projetos, dispositivos e clientes MCP.
+MyInst é um vault open source para armazenar, versionar e sincronizar contexto agentic entre projetos, workspaces, dispositivos e clientes MCP.
 
-Com ele voce consegue manter `skills`, `instructions`, `agents`, `hooks`,
-`memory`, `snippets` e configuracoes MCP em um backend central, com interface web,
-CLI e MCP server local para distribuicao automatica.
+Ele centraliza `skills`, `instructions`, `agents`, `hooks`, `memory`, `snippets` e configurações de clientes em um backend próprio, com interface web, API, CLI e MCP server local.
 
-## Problema Que Resolve
+## O que o MyInst resolve
 
-Quem trabalha com agentes de codigo normalmente espalha configuracoes em:
+Equipes pequenas e usuários avançados costumam espalhar contexto em:
 
 - `.claude/`
+- `.codex/`
+- `.cursor/`
 - `AGENTS.md`
+- `GEMINI.md`
 - `.mcp.json`
-- snippets locais
-- promps e regras copiadas entre maquinas
+- regras locais por projeto
 
-Isso rapidamente vira duplicacao, divergencia de versao e perda de contexto.
+O resultado é previsível: duplicação, divergência entre máquinas, dificuldade para restaurar contexto e muito trabalho manual para manter agentes consistentes.
 
-O MyInst resolve isso oferecendo:
+O MyInst resolve isso com:
 
-- backend central para armazenar conteudo agentic
-- versionamento de conteudo
-- organizacao por projetos e folders
-- tags por modelo/provider
-- distribuicao local via MCP server
-- CLI para sync fora do fluxo MCP
+- vault central versionado
+- organização por `workspace -> projeto -> pasta -> conteúdo`
+- sync local-first via MCP
+- importação de estruturas conhecidas de clientes
+- busca, diff e restore
+- API key única por conta
 
-Nao e marketplace. O foco e ser um cofre pessoal e controlado pelo usuario.
+## Para quem é
 
-## Principais Recursos
+- quem usa agentes de código em múltiplos projetos
+- quem quer manter instruções versionadas e sincronizadas
+- quem precisa self-hosting e controle sobre o backend
+- quem quer um vault pessoal, não um marketplace público de prompts
 
-- Cadastro, login e gerenciamento de API Keys
-- CRUD de projetos, folders e conteudos
-- Tipos suportados: `skill`, `instruction`, `mcp_config`, `agent`, `hook`, `memory`, `snippet`
-- Versionamento com diff e restore
-- Busca full-text no backend
-- Perfis por modelo com selecao automatica de tags
-- MCP server local com tools de `pull`, `push`, `search`, `status`, `import`
-- CLI standalone para `login`, `pull`, `push` e `list`
-- Deploy self-hosted com Docker Compose
+## Como funciona
 
-## Como Funciona
+```mermaid
+flowchart LR
+  A["Usuário cria conteúdo no web"] --> B["Vault MyInst"]
+  C["Cliente MCP local"] --> D["myinst-mcp"]
+  D --> B
+  D --> E["Arquivos locais do projeto"]
+  E --> D
+```
 
-1. O usuario cria conta e gera uma API key.
-2. O conteudo fica salvo no servidor MyInst.
-3. O MCP server local autentica com essa API key.
-4. O cliente MCP ou a CLI puxam o conteudo e aplicam os arquivos no projeto local.
-5. Alteracoes futuras podem ser reenviadas para o vault com versionamento.
+Fluxo operacional recomendado:
 
-## Arquitetura
+1. `myinst_pull` materializa o vault localmente.
+2. O agente trabalha sobre arquivos reais no projeto.
+3. `myinst_push` sincroniza mudanças de volta.
+4. `myinst_search` fica como ferramenta auxiliar de descoberta.
 
-O repositorio esta dividido em frontend, backend e pacotes npm:
+## Componentes do produto
 
-- `backend`
-  API Fastify com auth, sync, busca, versionamento e persistencia
-- `frontend`
-  Aplicacao React para gerenciamento do vault
-- `packages/mcp-server`
-  Servidor MCP local que conecta o usuario ao backend MyInst
-- `packages/cli`
-  CLI para autenticacao e sincronizacao sem depender de um cliente MCP
-- `packages/shared`
-  Schemas Zod, tipos e constantes compartilhadas
+| Componente | Papel |
+|------------|-------|
+| `frontend` | Painel web para workspaces, projetos, conteúdo e API keys |
+| `backend` | API Fastify com auth, busca, sync, versionamento e persistência |
+| `packages/cli` | CLI para login, listagem, pull e push fora do fluxo MCP |
+| `packages/mcp-server` | Servidor MCP local que conecta o cliente ao vault |
+| `packages/shared` | Schemas Zod, tipos e contratos compartilhados |
 
-## Stack
+## Compatibilidade de clientes
 
-- Linguagem: TypeScript
-- Backend: Fastify
-- Frontend: React 19 + Vite
-- Banco: PostgreSQL + Drizzle ORM
-- Validacao: Zod
-- Auth: JWT + API Keys + OAuth Google/GitHub
-- Monorepo: pnpm workspaces + Turborepo
-- Testes: Vitest
-- MCP: `@modelcontextprotocol/sdk`
+O MyInst agora trabalha com adapters em camadas de suporte.
 
-## Estrutura do Repositorio
+| Cliente | Suporte | Escopo | Tipos nativos |
+|---------|---------|--------|---------------|
+| Claude Code | `full` | projeto | `skill`, `instruction`, `mcp_config`, `agent`, `hook`, `memory`, `snippet` |
+| Codex | `full` | projeto e global | `skill`, `instruction`, `mcp_config` |
+| Cursor | `partial` | projeto e global | `instruction`, `mcp_config` |
+| Gemini CLI | `partial` | projeto e global | `instruction` |
+| OpenCode | `partial` | projeto e global | `instruction`, `mcp_config` |
+| Qwen Code | `partial` | projeto | `instruction` |
+| Aider | `partial` | projeto e global | `instruction`, `mcp_config` |
+| Antigravity | `experimental` | projeto e global | `instruction`, `mcp_config` |
+
+Observação:
+- `full` significa preservação direta da estrutura principal do cliente.
+- `partial` significa import/export apenas do que o cliente tem estrutura estável.
+- `experimental` exige cautela e mensagens explícitas de instabilidade.
+
+## Estrutura do repositório
 
 ```text
 MyInst/
@@ -94,16 +99,28 @@ MyInst/
 └── README.md
 ```
 
-## Quick Start
+## Stack
+
+- Linguagem: TypeScript
+- Backend: Fastify
+- Frontend: React 19 + Vite
+- Banco: PostgreSQL + Drizzle ORM
+- Validação: Zod
+- Auth: JWT + API key + OAuth opcional
+- Monorepo: pnpm workspaces + Turborepo
+- Testes: Vitest
+- MCP: `@modelcontextprotocol/sdk`
+
+## Quick start local
 
 ### Requisitos
 
 - Node.js 22+
 - pnpm 10+
 - PostgreSQL 16+
-- Docker Desktop, se quiser validar compose e testes do server com Postgres efemero
+- Docker Desktop para fluxos com compose e alguns testes integrados
 
-### Instalacao local
+### Instalação
 
 ```bash
 git clone git@github.com:davidassef/MyInst.git
@@ -114,60 +131,20 @@ pnpm db:push
 pnpm dev
 ```
 
-Aplicacoes locais:
+Ambiente local:
 
 - API: `http://localhost:3000`
-- Frontend Vite: `http://localhost:5173`
+- Frontend: `http://localhost:5173`
 
-## Variaveis de Ambiente
+## Configuração do MCP
 
-Arquivo base: [`.env.example`](.env.example)
-
-Principais variaveis:
-
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `PORT`
-- `NODE_ENV`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `GITHUB_CLIENT_ID`
-- `GITHUB_CLIENT_SECRET`
-  - `OAUTH_CALLBACK_URL`
-  - `VITE_MYINST_API_BASE`
-
-## Comandos Importantes
-
-```bash
-pnpm dev
-pnpm lint
-pnpm build
-pnpm test
-pnpm validate
-pnpm compose:check
-pnpm release:check
-```
-
-### O que cada um faz
-
-- `pnpm validate`
-  roda `lint`, `build` e `test`
-- `pnpm compose:check`
-  valida os arquivos Docker Compose de dev, VPS e shared-infra
-- `pnpm release:check`
-  roda a validacao completa antes de publicacao ou deploy
-
-## Uso do MCP Server
-
-Instalacao:
+Instalação:
 
 ```bash
 npm install -g @myinst/mcp-server
 ```
 
-O binario exposto e `myinst-mcp`.
-
-Exemplo de configuracao para clientes MCP:
+Exemplo de configuração:
 
 ```json
 {
@@ -183,103 +160,116 @@ Exemplo de configuracao para clientes MCP:
 }
 ```
 
-Tools disponiveis hoje:
+## Tools MCP
 
-- `myinst_list_projects`
-- `myinst_pull`
-- `myinst_search`
-- `myinst_status`
-- `myinst_push`
-- `myinst_import`
+| Tool | Papel |
+|------|-------|
+| `myinst_list_workspaces` | lista workspaces do usuário |
+| `myinst_list_projects` | lista projetos do workspace |
+| `myinst_list_sync_targets` | detecta clientes e estruturas sincronizáveis locais |
+| `myinst_pull` | materializa o vault em formato canônico ou nativo |
+| `myinst_push` | envia mudanças locais detectadas para o vault |
+| `myinst_import` | importa estruturas locais para o vault |
+| `myinst_search` | descoberta pontual por busca |
+| `myinst_status` | mudanças temporais no vault |
 
-Documentacao completa em [docs/mcp-server.md](docs/mcp-server.md).
+## Fluxos de uso
 
-## Uso da CLI
+### 1. Fluxo canônico local-first
 
-Instalacao:
-
-```bash
-npm install -g @myinst/cli
+```text
+myinst_pull -> editar arquivos locais -> myinst_push
 ```
 
-Comandos principais:
+### 2. Descoberta multi-cliente antes do sync
 
-```bash
-myinst login
-myinst list default
-myinst pull default
-myinst push default
+```text
+myinst_list_sync_targets
+myinst_import ou myinst_push com clients explícitos
 ```
 
-## Qualidade e CI
+### 3. Exportação nativa para clientes
 
-O projeto possui:
+```text
+myinst_pull targetFormat="native" clients=["cursor"]
+```
 
-- checagem de tipagem por pacote
-- build completo do monorepo
-- testes automatizados do CLI, MCP server e API
-- pipeline CI em GitHub Actions
+## Workspaces
 
-Arquivos relevantes:
+O modelo atual é:
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
-- [docs/contribuindo.md](docs/contribuindo.md)
+```text
+usuário -> workspaces -> projetos -> pastas -> conteúdos
+```
 
-## Deploy
+Padrões do sistema:
 
-Modos suportados:
+- API keys continuam no nível da conta
+- rotas legadas ainda usam `workspace default -> project default`
+- o MCP pode acessar todos os workspaces da conta com uma única API key
 
-- Docker Compose local: [docker-compose.yml](docker-compose.yml)
-- VPS para API + shared-infra: [deploy/docker-compose.vps-api.yml](deploy/docker-compose.vps-api.yml) e [deploy/docker-compose.shared-infra.yml](deploy/docker-compose.shared-infra.yml)
-- Alternativa de stack completa no VPS (inclui nginx do web): [docker-compose.vps.yml](docker-compose.vps.yml)
-- Infra compartilhada versionada: [deploy/docker-compose.shared-infra.yml](deploy/docker-compose.shared-infra.yml)
+## Branding local não versionado
 
-Documentacao:
+O frontend suporta override local de marca sem afetar forks do projeto:
 
-- [docs/self-hosting.md](docs/self-hosting.md)
-- [docs/go-live-checklist.md](docs/go-live-checklist.md)
-- [deploy/MIGRACAO.md](deploy/MIGRACAO.md)
+- base pública: `frontend/public/brand.default/`
+- override local ignorado por git: `frontend/public/brand.local/`
+- exemplo: `frontend/public/brand.local.example/manifest.example.json`
 
-## Publicacao npm
+Se `brand.local/manifest.json` existir, ele vence o manifest padrão em:
 
-Os pacotes preparados para publicacao sao:
+- nome do app
+- tagline
+- logo lateral
+- logo mark
+- favicon
 
-- `@myinst/shared`
-- `@myinst/mcp-server`
-- `@myinst/cli`
+## Variáveis de ambiente
 
-Fluxo documentado em [docs/publicacao-npm.md](docs/publicacao-npm.md).
+Consulte [`.env.example`](./.env.example).
 
-## Roadmap Imediato
+Campos críticos para produção:
 
-- Publicacao real dos pacotes no npm
-- Deploy em VPS com dominio proprio
-- Configuracao de OAuth real
-- Smoke test em ambiente publicado
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `APP_URL`
+- `API_PUBLIC_URL`
+- `CORS_ORIGIN`
+- `WEB_OAUTH_SUCCESS_URL`
+- `VITE_MYINST_API_BASE`
 
-## Documentacao
+## Comandos importantes
 
-- [Arquitetura](docs/arquitetura.md)
-- [API Reference](docs/api.md)
-- [MCP Server](docs/mcp-server.md)
-- [Go-Live Checklist](docs/go-live-checklist.md)
-- [Self-Hosting](docs/self-hosting.md)
-- [Publicacao npm](docs/publicacao-npm.md)
-- [Contribuindo](docs/contribuindo.md)
+```bash
+pnpm dev
+pnpm lint
+pnpm build
+pnpm test
+pnpm validate
+pnpm compose:check
+pnpm release:check
+pnpm prod:preflight
+```
 
-## Contribuicao
+## Self-hosting e deploy
 
-Pull requests sao bem-vindos, mas o padrao do projeto e estrito:
+Documentação principal:
 
-- logica de negocio em pt-BR
-- Conventional Commits em pt-BR
-- foco em legibilidade e manutenibilidade
-- nada de DDL executado sem permissao explicita
+- [docs/self-hosting.md](./docs/self-hosting.md)
+- [docs/go-live-checklist.md](./docs/go-live-checklist.md)
+- [docs/mcp-server.md](./docs/mcp-server.md)
+- [docs/publicacao-npm.md](./docs/publicacao-npm.md)
 
-Leia [docs/contribuindo.md](docs/contribuindo.md) antes de contribuir.
+Padrão de deploy do projeto:
 
-## Licenca
+- sempre via `git push` e `git pull`
+- sem cópia manual de arquivos para VPS
+- API exposta em `https://api-myinst.lotoscore.com.br`
 
-Este projeto esta licenciado sob AGPL-3.0.
+## Contribuindo
 
-Veja [LICENSE](LICENSE) para os termos completos.
+Leia [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## Licença
+
+AGPL-3.0.
