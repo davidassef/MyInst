@@ -50,14 +50,16 @@ docker compose --env-file deploy/.env.production.example -f deploy/docker-compos
 ### 4. Suba a API
 
 ```bash
-docker compose --env-file .env -f deploy/docker-compose.vps-api.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.vps-api-traefik.yml up -d --build
 ```
 
 Para primeiro deploy com schema:
 
 ```bash
-MYINST_COMPOSE_FILE=deploy/docker-compose.vps-api.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
+MYINST_COMPOSE_FILE=deploy/docker-compose.vps-api-traefik.yml MYINST_ENV_FILE=.env pnpm db:deploy:schema
 ```
+
+Observação: se estiver usando Traefik no VPS, mantenha `MYINST_API_HOST=api-myinst.lotoscore.com.br` em `.env`.
 
 Observação: se você precisar da stack web no próprio VPS, use `docker-compose.vps.yml`.
 
@@ -126,6 +128,7 @@ psql -h localhost -U myinst myinst < backup_20250101.sql
 | `CORS_ORIGIN` | Sim em produção | Origem permitida no CORS | `https://seudominio.com` |
 | `WEB_OAUTH_SUCCESS_URL` | Sim em produção | Retorno OAuth no frontend | `https://seudominio.com/login` |
 | `OAUTH_CALLBACK_URL` | Sim se OAuth estiver ativo | Base dos callbacks OAuth | `https://seudominio.com` |
+| `MYINST_API_HOST` | Sim com Traefik | Hostname exposto no Traefik | `api-myinst.seudominio.com` |
 | `VITE_MYINST_API_BASE` | Não | Base da API usada pelo frontend em produção | `https://api-myinst.lotoscore.com.br` |
 | `PORT` | Não | Porta do servidor (padrão: 3000) | `3000` |
 | `NODE_ENV` | Não | Ambiente (development/production) | `production` |
