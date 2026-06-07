@@ -1,6 +1,18 @@
-const API_BASE = import.meta.env.VITE_MYINST_API_BASE || '';
-const BASE_ORIGEM = API_BASE.replace(/\/+$/, '').replace(/\/api(?:\/v1)?$/i, '');
-const BASE_URL = `${BASE_ORIGEM}/api/v1`;
+const API_BASE = import.meta.env.VITE_MYINST_API_BASE?.trim() || '';
+
+function normalizarBaseApi(base: string): string {
+  if (!base) return '/api';
+
+  let baseNormalizada = base.replace(/\/+$/, '');
+
+  while (/\/api(?:\/v1)?$/i.test(baseNormalizada)) {
+    baseNormalizada = baseNormalizada.replace(/\/api(?:\/v1)?$/i, '');
+  }
+
+  return baseNormalizada || '/api';
+}
+
+const BASE_URL = `${normalizarBaseApi(API_BASE)}/api/v1`;
 
 function obterToken(): string | null {
   return localStorage.getItem('myinst_token');
