@@ -6,10 +6,10 @@ function normalizarBaseApi(base: string): string {
   let baseNormalizada = base.replace(/\/+$/, '');
 
   while (/\/api(?:\/v1)?$/i.test(baseNormalizada)) {
-    baseNormalizada = baseNormalizada.replace(/\/api(?:\/v1)?$/i, '');
+    baseNormalizada = baseNormalizada.replace(/\/api(?:\/v1)?$/i, '').replace(/\/+$/, '');
   }
 
-  return baseNormalizada || '/api';
+  return baseNormalizada;
 }
 
 const BASE_URL = `${normalizarBaseApi(API_BASE)}/api/v1`;
