@@ -305,6 +305,7 @@ export function WorkspacePage() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {projetos.map((projeto) => {
           const estaEditando = editandoProjetoId === projeto.id;
+          const rotaProjeto = `/workspaces/${workspaceSlug}/projetos/${projeto.slug}`;
 
           return (
             <article key={projeto.id} className="rounded-[26px] border border-white/8 bg-white/[0.03] p-5 transition hover:border-white/14 hover:bg-white/[0.05]">
@@ -325,12 +326,19 @@ export function WorkspacePage() {
                   submitLabel="Salvar projeto"
                 />
               ) : (
-                <div className="flex h-full flex-col">
+                <div
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => navigate(rotaProjeto)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    navigate(rotaProjeto);
+                  }}
+                  className="flex h-full cursor-pointer flex-col"
+                >
                   <div className="flex items-start justify-between gap-4">
-                    <Link
-                      to={`/workspaces/${workspaceSlug}/projetos/${projeto.slug}`}
-                      className="group min-w-0 flex-1"
-                    >
+                    <div className="group min-w-0 flex-1">
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-400/8">
                           <FolderOpen size={18} className="text-cyan-100" />
@@ -349,10 +357,13 @@ export function WorkspacePage() {
                           <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">{projeto.slug}</p>
                         </div>
                       </div>
-                    </Link>
+                    </div>
 
                     <button
-                      onClick={() => iniciarEdicaoProjeto(projeto)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        iniciarEdicaoProjeto(projeto);
+                      }}
                       className="rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-slate-400 transition hover:border-white/14 hover:text-white"
                       aria-label={`Editar ${projeto.name}`}
                     >

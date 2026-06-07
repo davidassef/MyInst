@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Boxes, ChevronRight, Pencil, Plus, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { gerarSlug } from '@/lib/slug';
@@ -21,6 +21,7 @@ interface FormularioWorkspace {
 const FORM_INICIAL = { name: '', slug: '', description: '' };
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [formCriacao, setFormCriacao] = useState<FormularioWorkspace>(FORM_INICIAL);
@@ -193,7 +194,10 @@ export function DashboardPage() {
           const estaEditando = editandoId === workspace.id;
 
           return (
-            <article key={workspace.id} className="rounded-[26px] border border-white/8 bg-white/[0.03] p-5 transition hover:border-white/14 hover:bg-white/[0.05]">
+            <article
+              key={workspace.id}
+              className="rounded-[26px] border border-white/8 bg-white/[0.03] p-5 transition hover:border-white/14 hover:bg-white/[0.05]"
+            >
               {estaEditando ? (
                 <WorkspaceForm
                   titulo="Editar workspace"
@@ -212,9 +216,19 @@ export function DashboardPage() {
                   compacto
                 />
               ) : (
-                <div className="flex h-full flex-col">
+                <div
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => navigate(`/workspaces/${workspace.slug}`)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    navigate(`/workspaces/${workspace.slug}`);
+                  }}
+                  className="flex h-full cursor-pointer flex-col"
+                >
                   <div className="flex items-start justify-between gap-4">
-                    <Link to={`/workspaces/${workspace.slug}`} className="group min-w-0 flex-1">
+                    <div className="group min-w-0 flex-1">
                       <div className="flex items-start gap-3">
                         <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-400/8">
                           <Boxes size={18} className="text-cyan-100" />
@@ -233,10 +247,13 @@ export function DashboardPage() {
                           <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">{workspace.slug}</p>
                         </div>
                       </div>
-                    </Link>
+                    </div>
 
                     <button
-                      onClick={() => iniciarEdicao(workspace)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        iniciarEdicao(workspace);
+                      }}
                       className="rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-slate-400 transition hover:border-white/14 hover:text-white"
                       aria-label={`Editar ${workspace.name}`}
                     >
@@ -250,13 +267,10 @@ export function DashboardPage() {
 
                   <div className="mt-6 flex items-center justify-between border-t border-white/8 pt-4">
                     <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Abrir contexto</span>
-                    <Link
-                      to={`/workspaces/${workspace.slug}`}
-                      className="inline-flex items-center gap-2 text-sm font-medium text-cyan-200 transition hover:text-white"
-                    >
+                    <span className="inline-flex items-center gap-2 text-sm font-medium text-cyan-200 transition group-hover:text-white">
                       Entrar
                       <ChevronRight size={16} />
-                    </Link>
+                    </span>
                   </div>
                 </div>
               )}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ShieldCheck, Waypoints } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -14,6 +14,7 @@ interface ClientProfile {
 }
 
 export function ClientProfilesPage() {
+  const navigate = useNavigate();
   const [profiles, setProfiles] = useState<ClientProfile[]>([]);
 
   useEffect(() => {
@@ -50,8 +51,18 @@ export function ClientProfilesPage() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {profiles.map((profile) => (
           <article key={profile.clientId} className="rounded-[26px] border border-white/8 bg-white/[0.03] p-5 transition hover:border-white/14 hover:bg-white/[0.05]">
-            <div className="flex h-full flex-col">
-              <Link to={`/client-profiles/${profile.clientId}`} className="group min-w-0 flex-1">
+            <div
+              role="link"
+              tabIndex={0}
+              onClick={() => navigate(`/client-profiles/${profile.clientId}`)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                navigate(`/client-profiles/${profile.clientId}`);
+              }}
+              className="flex h-full cursor-pointer flex-col"
+            >
+              <div className="group min-w-0 flex-1">
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/14 bg-cyan-400/8">
                     <Waypoints size={18} className="text-cyan-100" />
@@ -63,7 +74,7 @@ export function ClientProfilesPage() {
                     <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">{profile.clientId}</p>
                   </div>
                 </div>
-              </Link>
+              </div>
 
               <p className="mt-5 flex-1 text-sm leading-7 text-slate-400">
                 {profile.description || 'Configurações globais disponíveis para sincronização fora do escopo de projeto.'}
@@ -84,13 +95,10 @@ export function ClientProfilesPage() {
 
               <div className="mt-6 flex items-center justify-between border-t border-white/8 pt-4">
                 <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Abrir profile</span>
-                <Link
-                  to={`/client-profiles/${profile.clientId}`}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-cyan-200 transition hover:text-white"
-                >
+                <span className="inline-flex items-center gap-2 text-sm font-medium text-cyan-200 transition group-hover:text-white">
                   Entrar
                   <ChevronRight size={16} />
-                </Link>
+                </span>
               </div>
             </div>
           </article>
