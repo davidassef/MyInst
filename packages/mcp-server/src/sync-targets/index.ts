@@ -696,7 +696,10 @@ async function lerEstruturaClaude(raizProjeto: string): Promise<ItemSincronizave
   const itens = new Map<string, ItemSincronizavel>();
   const base = join(raizProjeto, '.claude');
 
-  await lerMarkdownsDiretos(join(base, 'skills'), 'skill', itens, ['.md'], true);
+  await lerMarkdownsDiretos(join(base, 'skills'), 'skill', itens, ['.md'], true, '', {
+    categoriaRaiz: 'shared_materialized',
+    categoriaAninhada: 'project',
+  });
   await lerMarkdownsDiretos(join(base, 'agents'), 'agent', itens, ['.md'], true);
   await lerMarkdownsDiretos(join(base, 'memory'), 'memory', itens, ['.md'], true);
   await lerMarkdownsDiretos(join(base, 'snippets'), 'snippet', itens, ['.md'], true);
@@ -744,6 +747,10 @@ async function lerMarkdownsDiretos(
   extensoesPermitidas = ['.md'],
   recursivo = false,
   prefixoSlug = '',
+  opcoes?: {
+    categoriaRaiz?: string;
+    categoriaAninhada?: string;
+  },
 ): Promise<void> {
   let entradas: string[];
   try {
@@ -776,7 +783,7 @@ async function lerMarkdownsDiretos(
       title: titulo,
       slug,
       body: corpo || conteudo,
-      metadata: {},
+      metadata: obterMetadataLeitura(prefixoSlug, opcoes),
       tags: [],
     });
   }
@@ -1260,4 +1267,24 @@ function normalizarSlug(valor: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function obterMetadataLeitura(
+  prefixoSlug: string,
+  opcoes?: {
+    categoriaRaiz?: string;
+    categoriaAninhada?: string;
+  },
+) {
+  const categoria = prefixoSlug
+    ? opcoes?.categoriaAninhada
+    : opcoes?.categoriaRaiz;
+
+  if (!categoria) {
+    return {};
+  }
+
+  return {
+    myinstSourceCategory: categoria,
+  };
 }

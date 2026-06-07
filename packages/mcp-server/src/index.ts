@@ -290,17 +290,19 @@ server.tool(
       [...new Set(resolucao.selectedTargets.map((target) => target.clientId))],
     );
 
-    let itens = importacao.items;
+    const itensTratados = separarItensSincronizaveis(importacao.items, types);
+    let itens = itensTratados.sincronizaveis;
     if (types && types.length > 0) {
       itens = itens.filter((item) => types.includes(item.type));
     }
 
     if (itens.length === 0) {
-      return respostaTexto([
-        `Nenhum conteúdo sincronizável encontrado em ${dir}.`,
-        montarResumoTargets(importacao.targets),
-        'O MyInst aceita apenas estruturas conhecidas por adapter e ignora caches, plugins empacotados, sessions e node_modules.',
-      ].join('\n'));
+      return respostaTexto(montarMensagemSemItensSincronizaveis({
+        dir,
+        targets: importacao.targets,
+        ignoradosCompartilhados: itensTratados.ignoradosCompartilhados,
+        contexto: 'push',
+      }));
     }
 
     if (dryRun) {
@@ -309,10 +311,11 @@ server.tool(
         `[DRY RUN] Origem detectada em ${dir}`,
         montarResumoTargets(importacao.targets),
         `Tipos encontrados: ${montarResumoTipos(itens)}`,
+        montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
         '',
         `${itens.length} item(ns) seriam enviados:`,
         JSON.stringify(preview, null, 2),
-      ].join('\n'));
+      ].filter(Boolean).join('\n'));
     }
 
     const resultado = await client.push({ workspace, project: slug, items: itens });
@@ -320,9 +323,10 @@ server.tool(
       `Push concluído para projeto "${slug}" a partir de ${dir}:`,
       montarResumoTargets(importacao.targets),
       `Tipos sincronizados: ${montarResumoTipos(itens)}`,
+      montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
       `  - Criados: ${resultado.created.length} (${resultado.created.join(', ') || 'nenhum'})`,
       `  - Atualizados: ${resultado.updated.length} (${resultado.updated.join(', ') || 'nenhum'})`,
-    ].join('\n'));
+    ].filter(Boolean).join('\n'));
   },
 );
 
@@ -357,22 +361,25 @@ server.tool(
       [...new Set(resolucao.selectedTargets.map((target) => target.clientId))],
     );
 
-    if (importacao.items.length === 0) {
-      return respostaTexto([
-        `Nenhum conteúdo sincronizável encontrado em ${sourceDir}.`,
-        montarResumoTargets(importacao.targets),
-        'O MyInst procura apenas estruturas conhecidas dos clientes suportados.',
-      ].join('\n'));
+    const itensTratados = separarItensSincronizaveis(importacao.items);
+    if (itensTratados.sincronizaveis.length === 0) {
+      return respostaTexto(montarMensagemSemItensSincronizaveis({
+        dir: sourceDir,
+        targets: importacao.targets,
+        ignoradosCompartilhados: itensTratados.ignoradosCompartilhados,
+        contexto: 'import',
+      }));
     }
 
     const nomeRepo = folderName || detectarNomeRepositorio(sourceDir);
-    const grupos = agruparImportacaoPorFolder(importacao.targets, importacao.items, nomeRepo);
+    const grupos = agruparImportacaoPorFolder(importacao.targets, itensTratados.sincronizaveis, nomeRepo);
 
     if (dryRun) {
       return respostaTexto([
         `[DRY RUN] Origem detectada em ${sourceDir}`,
         montarResumoTargets(importacao.targets),
-        `Tipos encontrados: ${montarResumoTipos(importacao.items)}`,
+        `Tipos encontrados: ${montarResumoTipos(itensTratados.sincronizaveis)}`,
+        montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados),
         '',
         'Pastas de destino previstas:',
         JSON.stringify(grupos.map((grupo) => ({
@@ -381,13 +388,17 @@ server.tool(
           scope: grupo.scope,
           itens: grupo.items.map((item) => ({ type: item.type, slug: item.slug })),
         })), null, 2),
-      ].join('\n'));
+      ].filter(Boolean).join('\n'));
     }
 
     const pastasExistentes = await client.listarPastas(slug, workspace);
     const existentes = await client.pull({ workspace, project: slug });
     const slugsExistentes = new Set(existentes.items.map((item) => `${item.type}:${item.slug}`));
     const linhas = [`Import concluído para projeto "${slug}" a partir de ${sourceDir}:`, montarResumoTargets(importacao.targets)];
+
+    if (itensTratados.ignoradosCompartilhados.length > 0) {
+      linhas.push(montarResumoIgnoradosCompartilhados(itensTratados.ignoradosCompartilhados));
+    }
 
     for (const grupo of grupos) {
       if (!pastasExistentes.some((pasta) => pasta.slug === grupo.folderSlug)) {
@@ -621,6 +632,53 @@ function formatarNomePasta(folderSlug: string) {
     .split('-')
     .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1))
     .join(' ');
+}
+
+function separarItensSincronizaveis(
+  items: ItemSincronizavel[],
+  types?: string[],
+) {
+  const ignoradosCompartilhados = items.filter((item) => {
+    const categoria = item.metadata?.myinstSourceCategory;
+    const tipoCompativel = !types || types.includes(item.type);
+    return categoria === 'shared_materialized' && tipoCompativel;
+  });
+
+  const sincronizaveis = items.filter((item) => item.metadata?.myinstSourceCategory !== 'shared_materialized');
+
+  return {
+    sincronizaveis,
+    ignoradosCompartilhados,
+  };
+}
+
+function montarResumoIgnoradosCompartilhados(itens: ItemSincronizavel[]) {
+  if (itens.length === 0) return '';
+
+  return `Itens ignorados por parecerem skills compartilhadas materializadas no projeto: ${itens.length} (${itens.map((item) => item.slug).join(', ')})`;
+}
+
+function montarMensagemSemItensSincronizaveis({
+  dir,
+  targets,
+  ignoradosCompartilhados,
+  contexto,
+}: {
+  dir: string;
+  targets: SyncTarget[];
+  ignoradosCompartilhados: ItemSincronizavel[];
+  contexto: 'push' | 'import';
+}) {
+  const mensagemBase = contexto === 'push'
+    ? 'O MyInst aceita apenas estruturas conhecidas por adapter e ignora caches, plugins empacotados, sessions e node_modules.'
+    : 'O MyInst procura apenas estruturas conhecidas dos clientes suportados.';
+
+  return [
+    `Nenhum conteúdo sincronizável encontrado em ${dir}.`,
+    montarResumoTargets(targets),
+    montarResumoIgnoradosCompartilhados(ignoradosCompartilhados),
+    mensagemBase,
+  ].filter(Boolean).join('\n');
 }
 
 async function preverAcaoGuiaMyInst(dir: string, strategy: ConflictStrategy) {
