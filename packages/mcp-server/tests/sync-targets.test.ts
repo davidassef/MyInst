@@ -63,6 +63,22 @@ describe('sync targets', () => {
     expect(targets.map((target) => target.scope).sort()).toEqual(['global', 'project']);
   });
 
+  it('não trata ~/.codex como projeto quando a origem já é o diretório global do codex', async () => {
+    const modulo = await importarModulo();
+    const targets = await modulo.listarSyncTargets(join(tempHome, '.codex'), 'all', ['codex']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].clientId).toBe('codex');
+    expect(targets[0].scope).toBe('global');
+  });
+
+  it('não detecta opencode project apenas por AGENTS.md genérico', async () => {
+    const modulo = await importarModulo();
+    const targets = await modulo.listarSyncTargets(join(tempHome, '.codex'), 'all', ['opencode']);
+
+    expect(targets).toHaveLength(0);
+  });
+
   it('importa apenas o cliente selecionado', async () => {
     const modulo = await importarModulo();
     const importacao = await modulo.importarTargetsDetectados(tempDir, 'project', ['cursor']);

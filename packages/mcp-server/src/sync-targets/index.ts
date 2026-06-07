@@ -236,6 +236,7 @@ function criarAdapterClaude(): ClienteAdapter {
     tiposSuportados: TIPOS_FULL,
     detectar: async (ctx, scope) => {
       if (scope === 'global') return [];
+      if (ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'claude')) return [];
 
       const base = join(ctx.projectDir, '.claude');
       const encontrados = await filtrarExistentes([
@@ -285,29 +286,31 @@ function criarAdapterCodex(): ClienteAdapter {
       const targets: SyncTarget[] = [];
 
       if (scope !== 'global') {
-        const baseProjeto = join(ctx.projectDir, '.codex');
-        const encontradosProjeto = await filtrarExistentes([
-          join(baseProjeto, 'skills'),
-          join(baseProjeto, 'AGENTS.md'),
-          join(baseProjeto, '.mcp.json'),
-          join(ctx.projectDir, 'AGENTS.md'),
-          join(ctx.projectDir, '.mcp.json'),
-        ]);
+        if (!ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'codex')) {
+          const baseProjeto = join(ctx.projectDir, '.codex');
+          const encontradosProjeto = await filtrarExistentes([
+            join(baseProjeto, 'skills'),
+            join(baseProjeto, 'AGENTS.md'),
+            join(baseProjeto, '.mcp.json'),
+            join(ctx.projectDir, 'AGENTS.md'),
+            join(ctx.projectDir, '.mcp.json'),
+          ]);
 
-        if (encontradosProjeto.length > 0) {
-          targets.push({
-            clientId: 'codex',
-            clientName: 'Codex',
-            supportLevel: 'full',
-            scope: 'project',
-            detectedPaths: encontradosProjeto,
-            supportedTypes: TIPOS_FULL,
-            estimatedItemCount: await contarSkillsCodex(join(baseProjeto, 'skills'))
-              + (await existe(join(baseProjeto, 'AGENTS.md')) ? 1 : 0)
-              + (await existe(join(baseProjeto, '.mcp.json')) ? 1 : 0)
-              + (await existe(join(ctx.projectDir, 'AGENTS.md')) ? 1 : 0)
-              + (await existe(join(ctx.projectDir, '.mcp.json')) ? 1 : 0),
-          });
+          if (encontradosProjeto.length > 0) {
+            targets.push({
+              clientId: 'codex',
+              clientName: 'Codex',
+              supportLevel: 'full',
+              scope: 'project',
+              detectedPaths: encontradosProjeto,
+              supportedTypes: TIPOS_FULL,
+              estimatedItemCount: await contarSkillsCodex(join(baseProjeto, 'skills'))
+                + (await existe(join(baseProjeto, 'AGENTS.md')) ? 1 : 0)
+                + (await existe(join(baseProjeto, '.mcp.json')) ? 1 : 0)
+                + (await existe(join(ctx.projectDir, 'AGENTS.md')) ? 1 : 0)
+                + (await existe(join(ctx.projectDir, '.mcp.json')) ? 1 : 0),
+            });
+          }
         }
       }
 
@@ -358,23 +361,25 @@ function criarAdapterCursor(): ClienteAdapter {
       const targets: SyncTarget[] = [];
 
       if (scope !== 'global') {
-        const base = join(ctx.projectDir, '.cursor');
-        const encontrados = await filtrarExistentes([
-          join(base, 'rules'),
-          join(base, 'mcp.json'),
-        ]);
+        if (!ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'cursor')) {
+          const base = join(ctx.projectDir, '.cursor');
+          const encontrados = await filtrarExistentes([
+            join(base, 'rules'),
+            join(base, 'mcp.json'),
+          ]);
 
-        if (encontrados.length > 0) {
-          targets.push({
-            clientId: 'cursor',
-            clientName: 'Cursor',
-            supportLevel: 'partial',
-            scope: 'project',
-            detectedPaths: encontrados,
-            supportedTypes: TIPOS_PARTIAL,
-            estimatedItemCount: await contarArquivosPorExtensao(join(base, 'rules'), ['.mdc', '.md'])
-              + (await existe(join(base, 'mcp.json')) ? 1 : 0),
-          });
+          if (encontrados.length > 0) {
+            targets.push({
+              clientId: 'cursor',
+              clientName: 'Cursor',
+              supportLevel: 'partial',
+              scope: 'project',
+              detectedPaths: encontrados,
+              supportedTypes: TIPOS_PARTIAL,
+              estimatedItemCount: await contarArquivosPorExtensao(join(base, 'rules'), ['.mdc', '.md'])
+                + (await existe(join(base, 'mcp.json')) ? 1 : 0),
+            });
+          }
         }
       }
 
@@ -417,17 +422,19 @@ function criarAdapterGemini(): ClienteAdapter {
       const targets: SyncTarget[] = [];
 
       if (scope !== 'global') {
-        const caminhoProjeto = join(ctx.projectDir, 'GEMINI.md');
-        if (await existe(caminhoProjeto)) {
-          targets.push({
-            clientId: 'gemini',
-            clientName: 'Gemini CLI',
-            supportLevel: 'partial',
-            scope: 'project',
-            detectedPaths: [caminhoProjeto],
-            supportedTypes: ['instruction'],
-            estimatedItemCount: 1,
-          });
+        if (!ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'gemini')) {
+          const caminhoProjeto = join(ctx.projectDir, 'GEMINI.md');
+          if (await existe(caminhoProjeto)) {
+            targets.push({
+              clientId: 'gemini',
+              clientName: 'Gemini CLI',
+              supportLevel: 'partial',
+              scope: 'project',
+              detectedPaths: [caminhoProjeto],
+              supportedTypes: ['instruction'],
+              estimatedItemCount: 1,
+            });
+          }
         }
       }
 
@@ -470,21 +477,26 @@ function criarAdapterOpenCode(): ClienteAdapter {
       const targets: SyncTarget[] = [];
 
       if (scope !== 'global') {
-        const encontrados = await filtrarExistentes([
-          join(ctx.projectDir, 'AGENTS.md'),
-          join(ctx.projectDir, 'opencode.json'),
-        ]);
+        if (!ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'opencode')) {
+          const caminhoConfigProjeto = join(ctx.projectDir, 'opencode.json');
+          if (await existe(caminhoConfigProjeto)) {
+            const encontrados = await filtrarExistentes([
+              caminhoConfigProjeto,
+              join(ctx.projectDir, 'AGENTS.md'),
+            ]);
 
-        if (encontrados.length > 0) {
-          targets.push({
-            clientId: 'opencode',
-            clientName: 'OpenCode',
-            supportLevel: 'partial',
-            scope: 'project',
-            detectedPaths: encontrados,
-            supportedTypes: TIPOS_PARTIAL,
-            estimatedItemCount: encontrados.length,
-          });
+            if (encontrados.length > 0) {
+              targets.push({
+                clientId: 'opencode',
+                clientName: 'OpenCode',
+                supportLevel: 'partial',
+                scope: 'project',
+                detectedPaths: encontrados,
+                supportedTypes: TIPOS_PARTIAL,
+                estimatedItemCount: encontrados.length,
+              });
+            }
+          }
         }
       }
 
@@ -533,6 +545,7 @@ function criarAdapterQwen(): ClienteAdapter {
     tiposSuportados: ['instruction'],
     detectar: async (ctx, scope) => {
       if (scope === 'global') return [];
+      if (ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'qwen')) return [];
 
       const caminho = join(ctx.projectDir, '.qwen', 'AGENTS.md');
       if (!(await existe(caminho))) return [];
@@ -565,21 +578,23 @@ function criarAdapterAider(): ClienteAdapter {
       const targets: SyncTarget[] = [];
 
       if (scope !== 'global') {
-        const encontrados = await filtrarExistentes([
-          join(ctx.projectDir, '.aider.conf.yml'),
-          join(ctx.projectDir, 'CONVENTIONS.md'),
-        ]);
+        if (!ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'aider')) {
+          const encontrados = await filtrarExistentes([
+            join(ctx.projectDir, '.aider.conf.yml'),
+            join(ctx.projectDir, 'CONVENTIONS.md'),
+          ]);
 
-        if (encontrados.length > 0) {
-          targets.push({
-            clientId: 'aider',
-            clientName: 'Aider',
-            supportLevel: 'partial',
-            scope: 'project',
-            detectedPaths: encontrados,
-            supportedTypes: TIPOS_PARTIAL,
-            estimatedItemCount: encontrados.length,
-          });
+          if (encontrados.length > 0) {
+            targets.push({
+              clientId: 'aider',
+              clientName: 'Aider',
+              supportLevel: 'partial',
+              scope: 'project',
+              detectedPaths: encontrados,
+              supportedTypes: TIPOS_PARTIAL,
+              estimatedItemCount: encontrados.length,
+            });
+          }
         }
       }
 
@@ -631,17 +646,19 @@ function criarAdapterAntigravity(): ClienteAdapter {
       const targets: SyncTarget[] = [];
 
       if (scope !== 'global') {
-        const caminhoProjeto = join(ctx.projectDir, '.antigravity');
-        if (await existe(caminhoProjeto)) {
-          targets.push({
-            clientId: 'antigravity',
-            clientName: 'Antigravity',
-            supportLevel: 'experimental',
-            scope: 'project',
-            detectedPaths: [caminhoProjeto],
-            supportedTypes: TIPOS_PARTIAL,
-            estimatedItemCount: 1,
-          });
+        if (!ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'antigravity')) {
+          const caminhoProjeto = join(ctx.projectDir, '.antigravity');
+          if (await existe(caminhoProjeto)) {
+            targets.push({
+              clientId: 'antigravity',
+              clientName: 'Antigravity',
+              supportLevel: 'experimental',
+              scope: 'project',
+              detectedPaths: [caminhoProjeto],
+              supportedTypes: TIPOS_PARTIAL,
+              estimatedItemCount: 1,
+            });
+          }
         }
       }
 
@@ -1000,6 +1017,45 @@ function resolverBaseOculta(target: SyncTarget, dir: string) {
   }
 
   return join(resolverRaizProjetoPorPath(target.detectedPaths[0]), dir, 'rules');
+}
+
+function ehRaizGlobalCliente(projectDir: string, userHome: string, clientId: string) {
+  const raizProjeto = normalizarPath(projectDir);
+  const raizesGlobais = obterRaizesGlobaisCliente(userHome, clientId);
+
+  return raizesGlobais.some((raizGlobal) => raizProjeto === normalizarPath(raizGlobal));
+}
+
+function obterRaizesGlobaisCliente(userHome: string, clientId: string) {
+  const geminiHome = process.env.GEMINI_CLI_HOME ? resolve(process.env.GEMINI_CLI_HOME) : join(userHome, '.gemini');
+
+  switch (clientId) {
+    case 'claude':
+      return [join(userHome, '.claude')];
+    case 'codex':
+      return [join(userHome, '.codex')];
+    case 'cursor':
+      return [join(userHome, '.cursor')];
+    case 'gemini':
+      return [geminiHome];
+    case 'opencode':
+      return [join(userHome, '.config', 'opencode')];
+    case 'qwen':
+      return [join(userHome, '.qwen')];
+    case 'aider':
+      return [userHome];
+    case 'antigravity':
+      return [join(userHome, '.gemini', 'antigravity-cli')];
+    default:
+      return [];
+  }
+}
+
+function normalizarPath(path: string) {
+  return resolve(path)
+    .replace(/[\\/]+/g, '/')
+    .replace(/\/+$/, '')
+    .toLowerCase();
 }
 
 function resolverRaizProjetoPorPath(path: string) {
