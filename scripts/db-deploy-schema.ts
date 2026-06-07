@@ -46,7 +46,8 @@ process.exit(resultado.status || 1);
 function descobrirServico(arquivoCompose: string) {
   if (
     arquivoCompose.endsWith('docker-compose.vps.yml') ||
-    arquivoCompose.endsWith('docker-compose.vps-api.yml')
+    arquivoCompose.endsWith('docker-compose.vps-api.yml') ||
+    arquivoCompose.endsWith('docker-compose.vps-api-traefik.yml')
   ) {
     return 'myinst-api';
   }

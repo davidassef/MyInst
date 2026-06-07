@@ -1,8 +1,6 @@
-const API_BASE = import.meta.env.VITE_MYINST_API_BASE?.trim() || '';
+const API_BASE = import.meta.env.VITE_MYINST_API_BASE?.trim() || '/api/v1';
 
 function normalizarBaseApi(base: string): string {
-  if (!base) return '/api';
-
   let baseNormalizada = base.replace(/\/+$/, '');
 
   while (/\/api(?:\/v1)?$/i.test(baseNormalizada)) {
