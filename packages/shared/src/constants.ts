@@ -5,8 +5,11 @@ export const CONTENT_TYPES = [
   'instruction',
   'mcp_config',
   'agent',
+  'command',
   'hook',
   'memory',
+  'output_style',
+  'setting',
   'snippet',
 ] as const;
 

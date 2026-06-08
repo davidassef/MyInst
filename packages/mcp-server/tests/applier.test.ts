@@ -78,6 +78,64 @@ describe('Applier', () => {
     expect(normalizePath(resultado[1].path)).toContain('.claude/agents/code-reviewer.md');
   });
 
+  it('materializa tipos globais em arvore previsivel por client', async () => {
+    const items = [
+      {
+        id: '10',
+        type: 'command',
+        title: 'Commit',
+        slug: 'commit',
+        description: null,
+        body: 'Comando global.',
+        metadata: {
+          myinstSourceScope: 'global',
+          myinstClientId: 'claude',
+          myinstSourcePath: '.claude/commands/commit.md',
+        },
+        tags: [],
+      },
+      {
+        id: '11',
+        type: 'output_style',
+        title: 'Coding Vibes',
+        slug: 'coding-vibes',
+        description: null,
+        body: 'Estilo global.',
+        metadata: {
+          myinstSourceScope: 'global',
+          myinstClientId: 'claude',
+          myinstSourcePath: '.claude/output-styles/coding-vibes.md',
+        },
+        tags: [],
+      },
+      {
+        id: '12',
+        type: 'setting',
+        title: 'Claude Settings',
+        slug: 'claude-settings',
+        description: null,
+        body: '{\n  "env": {\n    "ANTHROPIC_API_KEY": "[REDACTED]"\n  }\n}',
+        metadata: {
+          myinstSourceScope: 'global',
+          myinstClientId: 'claude',
+          myinstSourcePath: '.claude/settings.json',
+          myinstFileExtension: '.json',
+          myinstRequiresLocalSecrets: true,
+        },
+        tags: [],
+      },
+    ];
+
+    const resultado = await aplicarConteudo(items, tempDir);
+    expect(resultado).toHaveLength(4);
+    expect(normalizePath(resultado[1].path)).toContain('.myinst/client-profiles/claude/commands/commit.md');
+    expect(normalizePath(resultado[2].path)).toContain('.myinst/client-profiles/claude/output-styles/coding-vibes.md');
+    expect(normalizePath(resultado[3].path)).toContain('.myinst/client-profiles/claude/settings/claude-settings.json');
+
+    const conteudoSetting = await readFile(resultado[3].path, 'utf-8');
+    expect(conteudoSetting).toContain('[REDACTED]');
+  });
+
   it('aplica múltiplos itens de uma vez', async () => {
     const items = [
       { id: '4', type: 'skill', title: 'Debug', slug: 'debug', description: null, body: 'Debug skill', metadata: {}, tags: [] },

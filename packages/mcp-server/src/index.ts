@@ -26,7 +26,7 @@ const MYINST_API_KEY = process.env.MYINST_API_KEY;
 const MYINST_SERVER = process.env.MYINST_SERVER || 'http://localhost:3000';
 const SCOPES_SYNC = ['project', 'global', 'all'] as const;
 const FORMATOS_PULL = ['myinst', 'native'] as const;
-const TIPOS_CANONICOS = ['skill', 'instruction', 'mcp_config', 'agent', 'hook', 'memory', 'snippet'] as const;
+const TIPOS_CANONICOS = ['skill', 'instruction', 'mcp_config', 'agent', 'command', 'hook', 'memory', 'output_style', 'setting', 'snippet'] as const;
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log([
@@ -250,6 +250,7 @@ server.tool(
           workspace: item.workspace_slug,
           sourceScope: item.source_scope,
           clientId: item.client_id,
+          sourcePath: item.metadata?.myinstSourcePath,
         })), null, 2)}`,
     );
   },
@@ -603,15 +604,23 @@ function agruparImportacaoPorFolder(targets: SyncTarget[], items: ItemSincroniza
 }
 
 function filtrarItensPorCliente(items: ItemSincronizavel[], clientId: string) {
-  if (clientId === 'claude' || clientId === 'codex') {
+  const tiposSuportadosPorCliente: Record<string, TipoSincronizavel[]> = {
+    claude: ['skill', 'instruction', 'mcp_config', 'agent', 'command', 'hook', 'memory', 'output_style', 'setting', 'snippet'],
+    codex: ['skill', 'instruction', 'mcp_config', 'setting'],
+    cursor: ['skill', 'instruction', 'mcp_config', 'setting'],
+    gemini: ['instruction', 'mcp_config'],
+    opencode: ['instruction', 'setting'],
+    qwen: ['instruction', 'setting'],
+    aider: ['instruction', 'mcp_config'],
+    antigravity: ['setting'],
+  };
+  const tiposSuportados = tiposSuportadosPorCliente[clientId];
+
+  if (!tiposSuportados) {
     return items;
   }
 
-  if (clientId === 'cursor' || clientId === 'opencode' || clientId === 'aider' || clientId === 'antigravity') {
-    return items.filter((item) => item.type === 'instruction' || item.type === 'mcp_config');
-  }
-
-  return items.filter((item) => item.type === 'instruction');
+  return items.filter((item) => tiposSuportados.includes(item.type));
 }
 
 function deduplicarItens(items: ItemSincronizavel[]) {

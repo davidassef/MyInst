@@ -857,6 +857,30 @@ describe('MyInst API', () => {
       expect(res.json().data.tags).toEqual(['global', 'codex']);
     });
 
+    it('POST /client-profiles/:clientId/items aceita tipos globais novos', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/client-profiles/claude/items',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          type: 'command',
+          title: 'Commit',
+          slug: 'commit-global',
+          body: 'Comando global do Claude.',
+          metadata: {
+            myinstSourcePath: '.claude/commands/commit.md',
+            myinstRequiresLocalSecrets: false,
+          },
+          tags: ['claude'],
+          isActive: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().data.type).toBe('command');
+      expect(res.json().data.metadata.myinstSourcePath).toBe('.claude/commands/commit.md');
+    });
+
     it('GET /client-profiles/:clientId/items retorna apenas itens globais do cliente', async () => {
       const res = await app.inject({
         method: 'GET',
@@ -929,6 +953,29 @@ describe('MyInst API', () => {
             slug: 'infra-local-global',
             source_scope: 'global',
             client_id: 'codex',
+          }),
+        ]),
+      );
+    });
+
+    it('GET /search com scope=global encontra novos tipos globais e preserva origem no metadata', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/search?q=Commit&scope=global&clientId=claude&type=command',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'commit-global',
+            type: 'command',
+            source_scope: 'global',
+            client_id: 'claude',
+            metadata: expect.objectContaining({
+              myinstSourcePath: '.claude/commands/commit.md',
+            }),
           }),
         ]),
       );

@@ -6,8 +6,11 @@ export const contentTypeEnum = pgEnum('content_type', [
   'instruction',
   'mcp_config',
   'agent',
+  'command',
   'hook',
   'memory',
+  'output_style',
+  'setting',
   'snippet',
 ]);
 

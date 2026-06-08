@@ -16,7 +16,10 @@ describe('sync targets', () => {
     await mkdir(join(tempDir, '.codex', 'skills', 'infra-local'), { recursive: true });
     await mkdir(join(tempHome, '.codex', 'skills', 'global-skill'), { recursive: true });
     await mkdir(join(tempHome, '.claude', 'agents'), { recursive: true });
+    await mkdir(join(tempHome, '.claude', 'commands'), { recursive: true });
+    await mkdir(join(tempHome, '.claude', 'output-styles'), { recursive: true });
     await mkdir(join(tempHome, '.cursor', 'skills-cursor', 'cursor-global-skill'), { recursive: true });
+    await mkdir(join(tempHome, '.gemini', 'antigravity'), { recursive: true });
     await mkdir(join(tempHome, '.qwen'), { recursive: true });
     await mkdir(join(tempHome, '.antigravity'), { recursive: true });
 
@@ -35,8 +38,45 @@ describe('sync targets', () => {
     await writeFile(join(tempHome, '.claude', 'CLAUDE.md'), 'Claude Global');
     await writeFile(join(tempHome, '.claude', 'GLOBAL_GUIDELINES.md'), 'Guidelines Globais');
     await writeFile(join(tempHome, '.claude', 'agents', 'reviewer.md'), 'Agente Revisor');
+    await writeFile(join(tempHome, '.claude', 'commands', 'commit.md'), 'Comando de commit');
+    await writeFile(join(tempHome, '.claude', 'output-styles', 'coding-vibes.md'), 'Estilo casual');
+    await writeFile(join(tempHome, '.claude', 'settings.json'), JSON.stringify({
+      env: {
+        ANTHROPIC_API_KEY: 'sk-test-123',
+        ANTHROPIC_BASE_URL: 'https://api.example.com',
+      },
+      permissions: {
+        allow: ['Bash(ls:*)'],
+      },
+      teammateMode: true,
+    }, null, 2));
     await writeFile(join(tempHome, '.cursor', 'skills-cursor', 'cursor-global-skill', 'SKILL.md'), 'Skill Cursor Global');
+    await writeFile(join(tempHome, '.cursor', 'argv.json'), '{\n  "enable-crash-reporter": true,\n  "crash-reporter-id": "cursor-id"\n}');
+    await writeFile(join(tempHome, '.gemini', 'GEMINI.md'), 'Gemini Global');
+    await writeFile(join(tempHome, '.gemini', 'antigravity', 'mcp_config.json'), JSON.stringify({
+      mcpServers: {
+        github: {
+          env: {
+            GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_123',
+          },
+        },
+      },
+    }, null, 2));
     await writeFile(join(tempHome, '.qwen', 'QWEN.md'), 'Qwen Global');
+    await writeFile(join(tempHome, '.qwen', 'output-language.md'), 'Português sempre');
+    await writeFile(join(tempHome, '.qwen', 'settings.json'), JSON.stringify({
+      security: {
+        auth: {
+          selectedType: 'qwen-oauth',
+        },
+      },
+      mcpServers: {
+        filesystem: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem'],
+        },
+      },
+    }, null, 2));
     await writeFile(join(tempHome, '.antigravity', 'argv.json'), '{"antigravity":true}');
   });
 
@@ -77,12 +117,13 @@ describe('sync targets', () => {
 
   it('detecta clientes globais suportados na home do usuário', async () => {
     const modulo = await importarModulo();
-    const targets = await modulo.listarSyncTargets(tempHome, 'global', ['claude', 'cursor', 'qwen', 'antigravity']);
+    const targets = await modulo.listarSyncTargets(tempHome, 'global', ['claude', 'cursor', 'gemini', 'qwen', 'antigravity']);
 
     expect(targets).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ clientId: 'claude', scope: 'global' }),
         expect.objectContaining({ clientId: 'cursor', scope: 'global' }),
+        expect.objectContaining({ clientId: 'gemini', scope: 'global' }),
         expect.objectContaining({ clientId: 'qwen', scope: 'global' }),
         expect.objectContaining({ clientId: 'antigravity', scope: 'global' }),
       ]),
@@ -98,8 +139,35 @@ describe('sync targets', () => {
         expect.objectContaining({ type: 'instruction', slug: 'claude' }),
         expect.objectContaining({ type: 'instruction', slug: 'global-guidelines' }),
         expect.objectContaining({ type: 'agent', slug: 'reviewer' }),
+        expect.objectContaining({ type: 'command', slug: 'commit' }),
+        expect.objectContaining({ type: 'output_style', slug: 'coding-vibes' }),
+        expect.objectContaining({ type: 'setting', slug: 'claude-settings' }),
       ]),
     );
+  });
+
+  it('redige segredos em settings e configs globais', async () => {
+    const modulo = await importarModulo();
+    const claude = await modulo.importarTargetsDetectados(tempHome, 'global', ['claude']);
+    const gemini = await modulo.importarTargetsDetectados(tempHome, 'global', ['gemini']);
+
+    const claudeSettings = claude.items.find((item) => item.slug === 'claude-settings');
+    const geminiConfig = gemini.items.find((item) => item.slug === 'gemini-antigravity-mcp-config');
+
+    expect(claudeSettings).toBeDefined();
+    expect(claudeSettings?.type).toBe('setting');
+    expect(claudeSettings?.body).not.toContain('sk-test-123');
+    expect(claudeSettings?.body).toContain('[REDACTED]');
+    expect(claudeSettings?.metadata).toEqual(
+      expect.objectContaining({
+        myinstRequiresLocalSecrets: true,
+      }),
+    );
+
+    expect(geminiConfig).toBeDefined();
+    expect(geminiConfig?.type).toBe('mcp_config');
+    expect(geminiConfig?.body).not.toContain('github_pat_123');
+    expect(geminiConfig?.body).toContain('[REDACTED]');
   });
 
   it('não trata ~/.codex como projeto quando a origem já é o diretório global do codex', async () => {

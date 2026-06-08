@@ -39,6 +39,7 @@ Use o MyInst como fluxo local-first para materializar, editar e sincronizar cont
 - Prefira os arquivos locais materializados em vez de repetir consultas ao MCP.
 - Use myinst_search apenas para descoberta pontual ou para localizar conteudo remoto antes de materializar.
 - Sempre que criar, editar, reescrever ou reorganizar skills, instructions, agents, hooks, memory, snippets ou mcp_config, finalize com myinst_push para sincronizar de volta.
+- O mesmo vale para commands, output styles e settings globais redigidos quando o client suportar esses artefatos.
 
 ## Regras de uso
 - Se estiver trabalhando no repositorio atual, use scope=project.
@@ -57,10 +58,13 @@ Use o MyInst como fluxo local-first para materializar, editar e sincronizar cont
 - Skills: .claude/skills/{slug}.md
 - Instructions: .claude/CLAUDE.md
 - Agents: .claude/agents/{slug}.md
+- Commands: .claude/commands/{slug}.md
 - Hooks: .claude/hook-{slug}.md
 - Memory: .claude/memory/{slug}.md
+- Output Styles: .claude/output-styles/{slug}.md
 - Snippets: .claude/snippets/{slug}.md
 - MCP Config: .mcp.json
+- Settings globais: .myinst/client-profiles/{clientId}/settings/{slug}.json
 
 ## Regra final
 O ciclo correto e sempre:
@@ -72,8 +76,11 @@ const MAPEAMENTO_DIRETORIO: Record<string, string> = {
   instruction: '.claude',
   mcp_config: '.',
   agent: '.claude/agents',
+  command: '.claude/commands',
   hook: '.claude',
   memory: '.claude/memory',
+  output_style: '.claude/output-styles',
+  setting: '.myinst/settings',
   snippet: '.claude/snippets',
 };
 
@@ -82,8 +89,11 @@ const MAPEAMENTO_ARQUIVO: Record<string, (slug: string) => string> = {
   instruction: (_slug) => 'CLAUDE.md',
   mcp_config: (_slug) => '.mcp.json',
   agent: (slug) => `${slug}.md`,
+  command: (slug) => `${slug}.md`,
   hook: (slug) => `hook-${slug}.md`,
   memory: (slug) => `${slug}.md`,
+  output_style: (slug) => `${slug}.md`,
+  setting: (slug) => `${slug}.json`,
   snippet: (slug) => `${slug}.md`,
 };
 
@@ -106,8 +116,8 @@ export async function aplicarConteudo(
   aplicados.push(await aplicarGuiaMyInst(targetDir, conflictStrategy));
 
   for (const item of items) {
-    const dir = join(targetDir, MAPEAMENTO_DIRETORIO[item.type] || '.claude');
-    const nomeArquivo = MAPEAMENTO_ARQUIVO[item.type]?.(item.slug) || `${item.slug}.md`;
+    const dir = resolverDiretorioItem(targetDir, item);
+    const nomeArquivo = resolverNomeArquivoItem(item);
     const caminhoCompleto = join(dir, nomeArquivo);
 
     await mkdir(dir, { recursive: true });
@@ -140,6 +150,58 @@ export async function aplicarConteudo(
   }
 
   return aplicados;
+}
+
+function resolverDiretorioItem(targetDir: string, item: ConteudoItem) {
+  if (item.metadata?.myinstSourceScope === 'global') {
+    const clientId = typeof item.metadata?.myinstClientId === 'string' ? item.metadata.myinstClientId : 'unknown';
+    const base = join(targetDir, '.myinst', 'client-profiles', clientId);
+
+    switch (item.type) {
+      case 'skill':
+        return join(base, 'skills');
+      case 'instruction':
+        return join(base, 'instructions');
+      case 'agent':
+        return join(base, 'agents');
+      case 'command':
+        return join(base, 'commands');
+      case 'output_style':
+        return join(base, 'output-styles');
+      case 'setting':
+        return join(base, 'settings');
+      case 'mcp_config':
+        return join(base, 'mcp-config');
+      case 'hook':
+        return join(base, 'hooks');
+      case 'memory':
+        return join(base, 'memory');
+      case 'snippet':
+        return join(base, 'snippets');
+      default:
+        return join(base, 'items');
+    }
+  }
+
+  return join(targetDir, MAPEAMENTO_DIRETORIO[item.type] || '.claude');
+}
+
+function resolverNomeArquivoItem(item: ConteudoItem) {
+  if (item.metadata?.myinstSourceScope === 'global' && item.type === 'setting') {
+    const extensao = typeof item.metadata?.myinstFileExtension === 'string'
+      ? item.metadata.myinstFileExtension
+      : '.json';
+    return `${item.slug}${extensao}`;
+  }
+
+  if (item.metadata?.myinstSourceScope === 'global' && item.type === 'mcp_config') {
+    const extensao = typeof item.metadata?.myinstFileExtension === 'string'
+      ? item.metadata.myinstFileExtension
+      : '.json';
+    return `${item.slug}${extensao}`;
+  }
+
+  return MAPEAMENTO_ARQUIVO[item.type]?.(item.slug) || `${item.slug}.md`;
 }
 
 async function aplicarGuiaMyInst(
