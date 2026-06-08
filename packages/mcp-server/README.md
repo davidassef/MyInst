@@ -39,7 +39,8 @@ Antes de executar `myinst_push`, o agente deve respeitar:
 - substituir valores sensíveis por placeholders `{{...}}`;
 - se um valor for obrigatório para operação local, manter estrutura do arquivo e pedir preenchimento manual no ambiente do usuário;
 - usar `dryRun` para validar ações antes de gravar no vault;
-- manter `.claude/MYINST.md` como fonte de operação e não como banco de segredos.
+- manter `.myinst/MYINST.md` como fonte de operação e não como banco de segredos.
+- manter `.claude/MYINST.md` como cópia de compatibilidade, quando aplicável.
 
 Checklist obrigatória de pré-push:
 
@@ -48,7 +49,7 @@ Checklist obrigatória de pré-push:
 - garantir `placeholders` nos campos sensíveis;
 - só então executar `myinst_push`.
 
-`myinst_pull` cria ou atualiza `.claude/MYINST.md` para instruir o agente sobre:
+`myinst_pull` cria ou atualiza `.myinst/MYINST.md` para instruir o agente sobre:
 
 - diferenca entre `scope=project` e `scope=global`
 - uso de `clients` quando houver multiplos clientes detectados

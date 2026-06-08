@@ -131,7 +131,7 @@ export async function aplicarConteudo(
 ): Promise<ItemAplicado[]> {
   const aplicados: ItemAplicado[] = [];
 
-  aplicados.push(await aplicarGuiaMyInst(targetDir, conflictStrategy));
+  aplicados.push(...(await aplicarGuiaMyInst(targetDir, conflictStrategy)));
 
   for (const item of items) {
     const dir = resolverDiretorioItem(targetDir, item);
@@ -225,7 +225,29 @@ function resolverNomeArquivoItem(item: ConteudoItem) {
 async function aplicarGuiaMyInst(
   targetDir: string,
   conflictStrategy: ConflictStrategy,
-): Promise<ItemAplicado> {
+): Promise<ItemAplicado[]> {
+  const resultado: ItemAplicado[] = [];
+
+  const caminhoPrincipal = join(targetDir, '.myinst');
+  const caminhoRaiz = join(caminhoPrincipal, 'MYINST.md');
+  const caminhoRaizExiste = await arquivoExiste(caminhoRaiz);
+
+  await mkdir(caminhoPrincipal, { recursive: true });
+  await writeFile(caminhoRaiz, CONTEUDO_GUIA_MYINST, 'utf-8');
+  resultado.push(criarResultadoGuia(caminhoRaiz, caminhoRaizExiste ? 'overwritten' : 'created'));
+
+  const compatibilidade = await aplicarGuiaMyInstCompat(targetDir, conflictStrategy);
+  if (compatibilidade) {
+    resultado.push(compatibilidade);
+  }
+
+  return resultado;
+}
+
+async function aplicarGuiaMyInstCompat(
+  targetDir: string,
+  conflictStrategy: ConflictStrategy,
+): Promise<ItemAplicado | null> {
   const dir = join(targetDir, '.claude');
   const caminhoGuia = join(dir, 'MYINST.md');
 

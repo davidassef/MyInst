@@ -187,7 +187,7 @@ server.tool(
 
 server.tool(
   'myinst_pull',
-  'Materializa o vault MyInst localmente. No formato canônico, instala .claude/MYINST.md; no formato native, exporta para os caminhos nativos dos clientes selecionados.',
+  'Materializa o vault MyInst localmente. No formato canônico, instala .myinst/MYINST.md (e .claude/MYINST.md para compatibilidade); no formato native, exporta para os caminhos nativos dos clientes selecionados.',
   {
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
     project: z.string().describe('Slug do projeto para puxar (omita para "default")').optional(),
@@ -241,7 +241,7 @@ server.tool(
           '',
           montarPreviewPull(carregamento.items),
           '',
-          `.claude/MYINST.md também seria ${await preverAcaoGuiaMyInst(dir, strategy)}.`,
+          `MYINST.md também seria ${await preverAcaoGuiaMyInst(dir, strategy)} no diretório do projeto.`,
         ].join('\n'));
       }
 
@@ -1099,24 +1099,31 @@ async function preverAcaoGuiaMyInst(dir: string, strategy: ConflictStrategy) {
   const { access, constants, readFile } = await import('node:fs/promises');
   const { join } = await import('node:path');
 
-  const caminho = join(dir, '.claude', 'MYINST.md');
+  const caminhoMyInst = join(dir, '.myinst', 'MYINST.md');
+  const caminhoClaude = join(dir, '.claude', 'MYINST.md');
 
   try {
-    await access(caminho, constants.F_OK);
+    await access(caminhoMyInst, constants.F_OK);
+    return 'atualizado em .myinst/MYINST.md';
   } catch {
-    return 'criado';
+    // sem fallback ainda porque .myinst é o destino principal desde este ciclo
   }
 
-  const conteudoAtual = await readFile(caminho, 'utf-8');
-  if (conteudoAtual.includes('<!-- myinst-managed: true -->')) {
-    return 'atualizado';
-  }
+  try {
+    await access(caminhoClaude, constants.F_OK);
+    const conteudoAtual = await readFile(caminhoClaude, 'utf-8');
+    if (conteudoAtual.includes('<!-- myinst-managed: true -->')) {
+      return 'atualizado em .claude/MYINST.md (compatibilidade)';
+    }
 
-  if (strategy === 'skip') {
-    return 'ignorado';
-  }
+    if (strategy === 'skip') {
+      return 'ignorado pela cópia de compatibilidade em .claude/MYINST.md';
+    }
 
-  return 'criado como conflito controlado em .claude/vault-MYINST.md';
+    return 'criado como conflito controlado em .claude/vault-MYINST.md';
+  } catch {
+    return 'criado em .myinst/MYINST.md';
+  }
 }
 
 function respostaTexto(text: string) {

@@ -77,7 +77,7 @@ O fluxo padrão é local-first:
 
 `myinst_search` continua disponível, mas como descoberta pontual.
 
-Todo pull canônico cria ou atualiza `.claude/MYINST.md` para deixar esse contrato explícito para o agente.
+Todo pull canônico cria ou atualiza `.myinst/MYINST.md` para deixar esse contrato explícito para o agente, e também gera `.claude/MYINST.md` como alternativa de compatibilidade.
 
 ## Segurança operacional para agentes
 

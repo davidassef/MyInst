@@ -32,11 +32,12 @@ describe('Applier', () => {
     }];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(2);
-    expect(normalizePath(resultado[0].path)).toContain('.claude/MYINST.md');
-    expect(normalizePath(resultado[1].path)).toContain('.claude/skills/tdd.md');
+    expect(resultado).toHaveLength(3);
+    expect(normalizePath(resultado[0].path)).toContain('.myinst/MYINST.md');
+    expect(normalizePath(resultado[1].path)).toContain('.claude/MYINST.md');
+    expect(normalizePath(resultado[2].path)).toContain('.claude/skills/tdd.md');
 
-    const conteudo = await readFile(resultado[1].path, 'utf-8');
+    const conteudo = await readFile(resultado[2].path, 'utf-8');
     expect(conteudo).toBe('Escreva testes primeiro.');
   });
 
@@ -53,10 +54,10 @@ describe('Applier', () => {
     }];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(2);
-    expect(resultado[1].path).toContain('CLAUDE.md');
+    expect(resultado).toHaveLength(3);
+    expect(resultado[2].path).toContain('CLAUDE.md');
 
-    const conteudo = await readFile(resultado[1].path, 'utf-8');
+    const conteudo = await readFile(resultado[2].path, 'utf-8');
     expect(conteudo).toContain('# Regras Base');
     expect(conteudo).toContain('Use early return sempre.');
   });
@@ -74,8 +75,8 @@ describe('Applier', () => {
     }];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(2);
-    expect(normalizePath(resultado[1].path)).toContain('.claude/agents/code-reviewer.md');
+    expect(resultado).toHaveLength(3);
+    expect(normalizePath(resultado[2].path)).toContain('.claude/agents/code-reviewer.md');
   });
 
   it('materializa tipos globais em arvore previsivel por client', async () => {
@@ -127,12 +128,12 @@ describe('Applier', () => {
     ];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(4);
-    expect(normalizePath(resultado[1].path)).toContain('.myinst/client-profiles/claude/commands/commit.md');
-    expect(normalizePath(resultado[2].path)).toContain('.myinst/client-profiles/claude/output-styles/coding-vibes.md');
-    expect(normalizePath(resultado[3].path)).toContain('.myinst/client-profiles/claude/settings/claude-settings.json');
+    expect(resultado).toHaveLength(5);
+    expect(normalizePath(resultado[2].path)).toContain('.myinst/client-profiles/claude/commands/commit.md');
+    expect(normalizePath(resultado[3].path)).toContain('.myinst/client-profiles/claude/output-styles/coding-vibes.md');
+    expect(normalizePath(resultado[4].path)).toContain('.myinst/client-profiles/claude/settings/claude-settings.json');
 
-    const conteudoSetting = await readFile(resultado[3].path, 'utf-8');
+    const conteudoSetting = await readFile(resultado[4].path, 'utf-8');
     expect(conteudoSetting).toContain('[REDACTED]');
   });
 
@@ -143,9 +144,9 @@ describe('Applier', () => {
     ];
 
     const resultado = await aplicarConteudo(items, tempDir);
-    expect(resultado).toHaveLength(3);
-    expect(resultado[1].path).toContain('debug.md');
-    expect(resultado[2].path).toContain('contexto.md');
+    expect(resultado).toHaveLength(4);
+    expect(resultado[2].path).toContain('debug.md');
+    expect(resultado[3].path).toContain('contexto.md');
   });
 
   it('materializa guia operacional do MyInst sem sobrescrever CLAUDE.md', async () => {
@@ -155,10 +156,11 @@ describe('Applier', () => {
 
     const resultado = await aplicarConteudo([], dir);
 
-    expect(resultado).toHaveLength(1);
-    expect(normalizePath(resultado[0].path)).toContain('.claude/MYINST.md');
+    expect(resultado).toHaveLength(2);
+    expect(normalizePath(resultado[0].path)).toContain('.myinst/MYINST.md');
+    expect(normalizePath(resultado[1].path)).toContain('.claude/MYINST.md');
 
-    const guia = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
+    const guia = await readFile(join(dir, '.myinst', 'MYINST.md'), 'utf-8');
     const claude = await readFile(join(dir, '.claude', 'CLAUDE.md'), 'utf-8');
     expect(guia).toContain('myinst-managed: true');
     expect(guia).toContain('myinst_pull -> trabalho local -> myinst_push');
@@ -176,8 +178,9 @@ describe('Applier', () => {
 
     const resultado = await aplicarConteudo([], dir);
 
-    expect(resultado[0].status).toBe('overwritten');
-    const guia = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
+    expect(resultado[0].status).toBe('created');
+    expect(resultado[1].status).toBe('overwritten');
+    const guia = await readFile(join(dir, '.myinst', 'MYINST.md'), 'utf-8');
     expect(guia).toContain('## Modelo de escopo');
     expect(guia).toContain('## Fluxo oficial');
     expect(guia).toContain('## Regras de segurança (obrigatórias)');
@@ -195,13 +198,16 @@ describe('Applier', () => {
 
     const resultado = await aplicarConteudo([], dir);
 
-    expect(resultado[0].status).toBe('prefixed');
-    expect(normalizePath(resultado[0].path)).toContain('.claude/vault-MYINST.md');
+    expect(resultado[0].status).toBe('created');
+    expect(resultado[1].status).toBe('prefixed');
+    expect(normalizePath(resultado[1].path)).toContain('.claude/vault-MYINST.md');
 
     const manual = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
     const guia = await readFile(join(dir, '.claude', 'vault-MYINST.md'), 'utf-8');
+    const guiaRaiz = await readFile(join(dir, '.myinst', 'MYINST.md'), 'utf-8');
     expect(manual).toBe('arquivo manual');
     expect(guia).toContain('myinst-managed: true');
+    expect(guiaRaiz).toContain('myinst-managed: true');
 
     await rm(dir, { recursive: true, force: true });
   });
@@ -213,9 +219,12 @@ describe('Applier', () => {
 
     const resultado = await aplicarConteudo([], dir, 'skip');
 
-    expect(resultado[0].status).toBe('skipped');
+    expect(resultado[0].status).toBe('created');
+    expect(resultado[1].status).toBe('skipped');
     const manual = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
     expect(manual).toBe('arquivo manual');
+    const guiaRaiz = await readFile(join(dir, '.myinst', 'MYINST.md'), 'utf-8');
+    expect(guiaRaiz).toContain('myinst-managed: true');
 
     await rm(dir, { recursive: true, force: true });
   });

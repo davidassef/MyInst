@@ -10,7 +10,8 @@ describe('Pull preview', () => {
       tags: [],
     }]);
 
-    expect(texto).toContain('[DRY RUN] 2 item(ns) seriam aplicados');
+    expect(texto).toContain('[DRY RUN] 3 item(ns) seriam aplicados');
+    expect(texto).toContain('.myinst/MYINST.md');
     expect(texto).toContain('.claude/MYINST.md');
     expect(texto).toContain('Regras de segurança');
     expect(texto).toContain('placeholders');
