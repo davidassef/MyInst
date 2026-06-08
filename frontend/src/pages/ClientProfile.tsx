@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Pencil, Plus, Save, Search, Trash2, Waypoints } from 'lucide-react';
+import { ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
+import { ReplicationModal } from '@/components/ReplicationModal';
 import { api } from '@/lib/api';
+import { possuiReplicacaoCompativel } from '@/lib/clientProfileReplication';
 import { gerarSlug } from '@/lib/slug';
 
 const TIPOS_LABEL: Record<string, string> = {
@@ -34,6 +37,20 @@ interface ItemGlobal {
   updatedAt: string;
 }
 
+interface MenuState {
+  open: boolean;
+  x: number;
+  y: number;
+  actions: ContextMenuAction[];
+}
+
+const MENU_INICIAL: MenuState = {
+  open: false,
+  x: 0,
+  y: 0,
+  actions: [],
+};
+
 export function ClientProfilePage() {
   const { clientId = '' } = useParams<{ clientId: string }>();
   const [profile, setProfile] = useState<ClientProfile | null>(null);
@@ -53,6 +70,8 @@ export function ClientProfilePage() {
   const [tituloEditado, setTituloEditado] = useState('');
   const [bodyEditado, setBodyEditado] = useState('');
   const [tagsEditadas, setTagsEditadas] = useState('');
+  const [menu, setMenu] = useState<MenuState>(MENU_INICIAL);
+  const [modalReplicacaoAberto, setModalReplicacaoAberto] = useState(false);
 
   useEffect(() => {
     if (!clientId) return;
@@ -133,8 +152,43 @@ export function ClientProfilePage() {
     }
   }
 
+  function abrirMenu(event: React.MouseEvent, actions: ContextMenuAction[]) {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({
+      open: true,
+      x: event.clientX,
+      y: event.clientY,
+      actions,
+    });
+  }
+
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      onContextMenu={(event) => {
+        const alvo = event.target as HTMLElement;
+        if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {
+          return;
+        }
+
+        const actions: ContextMenuAction[] = [
+          {
+            label: 'Novo item',
+            onSelect: () => setMostrarForm(true),
+          },
+        ];
+
+        if (clientId && possuiReplicacaoCompativel(clientId)) {
+          actions.push({
+            label: 'Replicar',
+            onSelect: () => setModalReplicacaoAberto(true),
+          });
+        }
+
+        abrirMenu(event, actions);
+      }}
+    >
       <div className="flex items-center gap-3">
         <Link to="/client-profiles" className="rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-slate-400 transition hover:border-white/14 hover:text-white">
           <ArrowLeft size={18} />
@@ -151,8 +205,8 @@ export function ClientProfilePage() {
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <section className="rounded-[28px] border border-white/8 bg-white/[0.03] p-5">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap items-stretch gap-3">
+            <div className="relative min-w-0 flex-1 basis-[320px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 value={busca}
@@ -161,7 +215,7 @@ export function ClientProfilePage() {
                 className="vault-input pl-9"
               />
             </div>
-            <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="vault-input max-w-[180px]">
+            <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="vault-input min-w-[190px] sm:w-auto">
               <option value="">Todos os tipos</option>
               {Object.entries(TIPOS_LABEL).map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
@@ -169,7 +223,7 @@ export function ClientProfilePage() {
             </select>
             <button
               onClick={() => setMostrarForm((atual) => !atual)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/22 bg-cyan-300/12 px-4 py-3 text-sm font-medium text-cyan-50 transition hover:bg-cyan-300/18"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/22 bg-cyan-300/12 px-4 py-3 text-sm font-medium text-cyan-50 transition hover:bg-cyan-300/18 sm:ml-auto"
             >
               <Plus size={16} />
               Novo item
@@ -225,7 +279,14 @@ export function ClientProfilePage() {
             {itensFiltrados.map((item) => (
               <div
                 key={item.id}
+                data-card-menu
                 onClick={() => setSelecionado(item)}
+                onContextMenu={(event) => abrirMenu(event, [
+                  {
+                    label: 'Propriedades',
+                    onSelect: () => setSelecionado(item),
+                  },
+                ])}
                 className={`cursor-pointer rounded-[22px] border p-4 transition ${
                   selecionado?.id === item.id
                     ? 'border-cyan-300/25 bg-cyan-300/10'
@@ -288,6 +349,20 @@ export function ClientProfilePage() {
           )}
         </section>
       </div>
+
+      <ContextMenu
+        open={menu.open}
+        x={menu.x}
+        y={menu.y}
+        actions={menu.actions}
+        onClose={() => setMenu(MENU_INICIAL)}
+      />
+
+      <ReplicationModal
+        open={modalReplicacaoAberto}
+        sourceClient={clientId}
+        onClose={() => setModalReplicacaoAberto(false)}
+      />
     </div>
   );
 }

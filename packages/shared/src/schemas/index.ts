@@ -49,6 +49,12 @@ export const criarClientProfileItemSchema = z.object({
 
 export const atualizarClientProfileItemSchema = criarClientProfileItemSchema.partial();
 
+export const replicarClientProfileSchema = z.object({
+  dryRun: z.boolean().optional(),
+  types: z.array(z.enum(CONTENT_TYPES)).optional(),
+  overwrite: z.boolean().optional(),
+});
+
 export const criarFolderSchema = z.object({
   name: z.string().min(1).max(100),
   slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),

@@ -881,6 +881,26 @@ describe('MyInst API', () => {
       expect(res.json().data.metadata.myinstSourcePath).toBe('.claude/commands/commit.md');
     });
 
+    it('POST /client-profiles/:clientId/items cria instruction global do claude para replicação', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/client-profiles/claude/items',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          type: 'instruction',
+          title: 'Claude Base',
+          slug: 'claude-base',
+          body: 'Instrução base do Claude.',
+          metadata: { source: 'teste-replicacao' },
+          tags: ['claude'],
+          isActive: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().data.type).toBe('instruction');
+    });
+
     it('GET /client-profiles/:clientId/items retorna apenas itens globais do cliente', async () => {
       const res = await app.inject({
         method: 'GET',
@@ -979,6 +999,89 @@ describe('MyInst API', () => {
           }),
         ]),
       );
+    });
+
+    it('POST /client-profiles/:sourceClient/replicate/:targetClient faz dry run com itens compatíveis e ignorados', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/client-profiles/claude/replicate/opencode',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          dryRun: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.compatible).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'claude-base',
+            type: 'instruction',
+          }),
+        ]),
+      );
+      expect(res.json().data.ignoredIncompatible).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'commit-global',
+            type: 'command',
+          }),
+        ]),
+      );
+    });
+
+    it('POST /client-profiles/:sourceClient/replicate/:targetClient replica itens compatíveis para o destino', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/client-profiles/codex/replicate/opencode',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {},
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.toCreate).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'infra-local-global',
+            type: 'instruction',
+          }),
+        ]),
+      );
+
+      const itensDestino = await app.inject({
+        method: 'GET',
+        url: '/api/v1/client-profiles/opencode/items',
+        headers: { authorization: `Bearer ${apiKey}` },
+      });
+
+      expect(itensDestino.statusCode).toBe(200);
+      expect(itensDestino.json().data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slug: 'infra-local-global',
+            type: 'instruction',
+            metadata: expect.objectContaining({
+              myinstReplicatedFromClient: 'codex',
+              myinstReplicatedFromSlug: 'infra-local-global',
+              myinstReplicationVersion: 'v1',
+            }),
+          }),
+        ]),
+      );
+    });
+
+    it('POST /client-profiles/:sourceClient/replicate/:targetClient retorna erro claro para par não suportado', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/client-profiles/cursor/replicate/opencode',
+        headers: { authorization: `Bearer ${apiKey}` },
+        payload: {
+          dryRun: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('REPLICATION_NOT_SUPPORTED');
     });
   });
 

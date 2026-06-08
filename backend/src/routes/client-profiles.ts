@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq, gte } from 'drizzle-orm';
-import type { ClientProfileId } from '@myinst/shared';
-import { clientProfileIdSchema, criarClientProfileItemSchema, atualizarClientProfileItemSchema } from '@myinst/shared';
+import type { ClientProfileId, ContentType } from '@myinst/shared';
+import { clientProfileIdSchema, criarClientProfileItemSchema, atualizarClientProfileItemSchema, replicarClientProfileSchema } from '@myinst/shared';
 import { db } from '../db/index.js';
 import { clientProfileItems, clientProfileItemVersions } from '../db/schema.js';
 import { autenticar } from '../middleware/auth.js';
 import { validar } from '../middleware/validation.js';
 import { buscarClientProfile, listarClientProfilesDoUsuario, obterOuCriarClientProfile } from '../lib/client-profiles.js';
+import { listarParesSuportadosReplicacaoClientProfile, planejarReplicacaoClientProfile } from '../lib/client-profile-replication.js';
 
 const CAMPO_TAGS_METADATA = 'myinstTags';
 
@@ -231,6 +232,103 @@ export async function clientProfileRoutes(app: FastifyInstance) {
       },
     };
   });
+
+  app.post(
+    '/client-profiles/:sourceClient/replicate/:targetClient',
+    { preHandler: [validar(replicarClientProfileSchema)] },
+    async (request, reply) => {
+      const { sourceClient, targetClient } = request.params as { sourceClient: ClientProfileId; targetClient: ClientProfileId };
+      const body = request.body as {
+        dryRun?: boolean;
+        types?: ContentType[];
+        overwrite?: boolean;
+      };
+
+      const sourceClientValidado = clientProfileIdSchema.parse(sourceClient);
+      const targetClientValidado = clientProfileIdSchema.parse(targetClient);
+      const sourceProfile = await obterOuCriarClientProfile(request.user.id, sourceClientValidado);
+      const targetProfile = await obterOuCriarClientProfile(request.user.id, targetClientValidado);
+      const sourceItems = await db
+        .select()
+        .from(clientProfileItems)
+        .where(and(eq(clientProfileItems.clientProfileId, sourceProfile.id), eq(clientProfileItems.isActive, true)));
+      const targetItems = await db
+        .select()
+        .from(clientProfileItems)
+        .where(and(eq(clientProfileItems.clientProfileId, targetProfile.id), eq(clientProfileItems.isActive, true)));
+
+      try {
+        const plano = planejarReplicacaoClientProfile({
+          sourceClient: sourceClientValidado,
+          targetClient: targetClientValidado,
+          sourceItems: sourceItems.map(normalizarItemParaReplicacao),
+          targetItems: targetItems.map(normalizarItemParaReplicacao),
+          types: body.types,
+          overwrite: body.overwrite,
+        });
+
+        if (body.dryRun) {
+          return { data: resumirPlanoReplicacao(plano) };
+        }
+
+        for (const item of plano.toCreateItems) {
+          await db.insert(clientProfileItems).values({
+            userId: request.user.id,
+            clientProfileId: targetProfile.id,
+            type: item.type,
+            title: item.title,
+            slug: item.slug,
+            body: item.body,
+            metadata: anexarTagsAoMetadata(item.metadata, item.tags),
+            isActive: true,
+          });
+        }
+
+        for (const item of plano.toUpdateItems) {
+          const [existente] = await db
+            .select()
+            .from(clientProfileItems)
+            .where(and(
+              eq(clientProfileItems.clientProfileId, targetProfile.id),
+              eq(clientProfileItems.type, item.type),
+              eq(clientProfileItems.slug, item.slug),
+            ))
+            .limit(1);
+
+          if (!existente) continue;
+
+          await db.insert(clientProfileItemVersions).values({
+            clientProfileItemId: existente.id,
+            version: existente.version,
+            body: existente.body,
+            metadata: existente.metadata,
+          });
+
+          await db
+            .update(clientProfileItems)
+            .set({
+              title: item.title,
+              body: item.body,
+              metadata: anexarTagsAoMetadata(item.metadata, item.tags),
+              version: existente.version + 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(clientProfileItems.id, existente.id));
+        }
+
+        return { data: resumirPlanoReplicacao(plano) };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Falha ao replicar client profile';
+        return reply.status(400).send({
+          error: {
+            code: 'REPLICATION_NOT_SUPPORTED',
+            message: `${message}. Compatibilidade suportada no v1: ${listarParesSuportadosReplicacaoClientProfile().join(', ')}`,
+            status: 400,
+          },
+        });
+      }
+    },
+  );
 }
 
 function anexarTagsAoMetadata(metadata: Record<string, unknown>, tags: string[]) {
@@ -251,5 +349,42 @@ function normalizarItemClientProfile(item: typeof clientProfileItems.$inferSelec
     ...item,
     metadata,
     tags: lerTagsDoMetadata(metadata),
+  };
+}
+
+function normalizarItemParaReplicacao(item: typeof clientProfileItems.$inferSelect) {
+  const metadata = item.metadata as Record<string, unknown>;
+
+  return {
+    type: item.type,
+    slug: item.slug,
+    title: item.title,
+    body: item.body,
+    metadata,
+    tags: lerTagsDoMetadata(metadata),
+  };
+}
+
+function resumirPlanoReplicacao(plano: {
+  sourceClient: string;
+  targetClient: string;
+  pair: string;
+  compatible: unknown[];
+  toCreate: unknown[];
+  toUpdate: unknown[];
+  skippedExisting: unknown[];
+  ignoredIncompatible: unknown[];
+  ignoredNoRule: unknown[];
+}) {
+  return {
+    sourceClient: plano.sourceClient,
+    targetClient: plano.targetClient,
+    pair: plano.pair,
+    compatible: plano.compatible,
+    toCreate: plano.toCreate,
+    toUpdate: plano.toUpdate,
+    skippedExisting: plano.skippedExisting,
+    ignoredIncompatible: plano.ignoredIncompatible,
+    ignoredNoRule: plano.ignoredNoRule,
   };
 }

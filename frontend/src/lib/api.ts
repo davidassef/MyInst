@@ -97,6 +97,21 @@ export const api = {
       request<any>(`/client-profiles/${clientId}/items/${itemSlug}`, { method: 'PATCH', body: JSON.stringify(body) }),
     deletarItem: (clientId: string, itemSlug: string) =>
       request<void>(`/client-profiles/${clientId}/items/${itemSlug}`, { method: 'DELETE' }),
+    replicar: (
+      sourceClient: string,
+      targetClient: string,
+      body: { dryRun?: boolean; types?: string[]; overwrite?: boolean },
+    ) => request<{
+      sourceClient: string;
+      targetClient: string;
+      pair: string;
+      compatible: Array<{ type: string; slug: string; title: string; reason?: string }>;
+      toCreate: Array<{ type: string; slug: string; title: string; reason?: string }>;
+      toUpdate: Array<{ type: string; slug: string; title: string; reason?: string }>;
+      skippedExisting: Array<{ type: string; slug: string; title: string; reason?: string }>;
+      ignoredIncompatible: Array<{ type: string; slug: string; title: string; reason?: string }>;
+      ignoredNoRule: Array<{ type: string; slug: string; title: string; reason?: string }>;
+    }>(`/client-profiles/${sourceClient}/replicate/${targetClient}`, { method: 'POST', body: JSON.stringify(body) }),
   },
   projetos: {
     listar: (workspaceSlug?: string) =>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Boxes, ChevronRight, Pencil, Plus, ShieldCheck } from 'lucide-react';
+import { ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
 import { api } from '@/lib/api';
 import { gerarSlug } from '@/lib/slug';
 
@@ -19,6 +20,7 @@ interface FormularioWorkspace {
 }
 
 const FORM_INICIAL = { name: '', slug: '', description: '' };
+const MENU_INICIAL = { open: false, x: 0, y: 0, actions: [] as ContextMenuAction[] };
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -31,6 +33,7 @@ export function DashboardPage() {
   const [slugEdicaoManual, setSlugEdicaoManual] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState('');
+  const [menu, setMenu] = useState(MENU_INICIAL);
 
   useEffect(() => {
     api.workspaces.listar().then(setWorkspaces);
@@ -124,8 +127,34 @@ export function DashboardPage() {
     setErroForm('');
   }
 
+  function abrirMenu(event: React.MouseEvent, actions: ContextMenuAction[]) {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({
+      open: true,
+      x: event.clientX,
+      y: event.clientY,
+      actions,
+    });
+  }
+
   return (
-    <div className="space-y-8">
+    <div
+      className="space-y-8"
+      onContextMenu={(event) => {
+        const alvo = event.target as HTMLElement;
+        if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {
+          return;
+        }
+
+        abrirMenu(event, [
+          {
+            label: 'Criar workspace',
+            onSelect: () => setMostrarForm(true),
+          },
+        ]);
+      }}
+    >
       <section className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
         <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-6">
           <div className="flex items-start justify-between gap-6">
@@ -217,9 +246,20 @@ export function DashboardPage() {
                 />
               ) : (
                 <div
+                  data-card-menu
                   role="link"
                   tabIndex={0}
                   onClick={() => navigate(`/workspaces/${workspace.slug}`)}
+                  onContextMenu={(event) => abrirMenu(event, [
+                    {
+                      label: 'Propriedades',
+                      onSelect: () => navigate(`/workspaces/${workspace.slug}`),
+                    },
+                    {
+                      label: 'Editar',
+                      onSelect: () => iniciarEdicao(workspace),
+                    },
+                  ])}
                   onKeyDown={(event) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return;
                     event.preventDefault();
@@ -278,6 +318,14 @@ export function DashboardPage() {
           );
         })}
       </section>
+
+      <ContextMenu
+        open={menu.open}
+        x={menu.x}
+        y={menu.y}
+        actions={menu.actions}
+        onClose={() => setMenu(MENU_INICIAL)}
+      />
     </div>
   );
 }

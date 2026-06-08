@@ -182,11 +182,11 @@ export function ProjetoPage() {
         <h2 className="text-2xl font-bold text-zinc-100">{slug}</h2>
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <select
           value={filtroTipo}
           onChange={(e) => setFiltroTipo(e.target.value)}
-          className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 text-sm focus:outline-none"
+          className="min-w-[190px] rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 focus:outline-none"
         >
           <option value="">Todos os tipos</option>
           {Object.entries(TIPOS_LABEL).map(([key, label]) => (
@@ -196,7 +196,7 @@ export function ProjetoPage() {
 
         <button
           onClick={() => setMostrarForm(!mostrarForm)}
-          className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors ml-auto"
+          className="ml-auto flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white transition-colors hover:bg-blue-700"
         >
           <Plus size={14} />
           Novo
@@ -340,7 +340,7 @@ export function ProjetoPage() {
 
       <div className="flex gap-4">
         <div className="w-1/2 space-y-2">
-          <div className="relative mb-3">
+          <div className="relative mb-3 min-w-0">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
             <input
               type="text"

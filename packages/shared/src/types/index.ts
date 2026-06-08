@@ -13,6 +13,7 @@ import type {
   criarTagSchema,
   criarClientProfileItemSchema,
   atualizarClientProfileItemSchema,
+  replicarClientProfileSchema,
   syncPullSchema,
   syncPushSchema,
 } from '../schemas/index.js';
@@ -30,8 +31,28 @@ export type AtualizarConteudoInput = z.infer<typeof atualizarConteudoSchema>;
 export type CriarTagInput = z.infer<typeof criarTagSchema>;
 export type CriarClientProfileItemInput = z.infer<typeof criarClientProfileItemSchema>;
 export type AtualizarClientProfileItemInput = z.infer<typeof atualizarClientProfileItemSchema>;
+export type ReplicarClientProfileInput = z.infer<typeof replicarClientProfileSchema>;
 export type SyncPullInput = z.infer<typeof syncPullSchema>;
 export type SyncPushInput = z.infer<typeof syncPushSchema>;
+
+export interface ResumoReplicacaoClientProfileItem {
+  type: string;
+  slug: string;
+  title: string;
+  reason?: string;
+}
+
+export interface ResumoReplicacaoClientProfile {
+  sourceClient: string;
+  targetClient: string;
+  pair: string;
+  compatible: ResumoReplicacaoClientProfileItem[];
+  toCreate: ResumoReplicacaoClientProfileItem[];
+  toUpdate: ResumoReplicacaoClientProfileItem[];
+  skippedExisting: ResumoReplicacaoClientProfileItem[];
+  ignoredIncompatible: ResumoReplicacaoClientProfileItem[];
+  ignoredNoRule: ResumoReplicacaoClientProfileItem[];
+}
 
 export interface Usuario {
   id: string;

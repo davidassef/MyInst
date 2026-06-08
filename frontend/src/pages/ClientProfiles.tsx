@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ShieldCheck, Waypoints } from 'lucide-react';
+import { ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
+import { ReplicationModal } from '@/components/ReplicationModal';
 import { api } from '@/lib/api';
+import { possuiReplicacaoCompativel } from '@/lib/clientProfileReplication';
 
 interface ClientProfile {
   id: string;
@@ -13,16 +16,58 @@ interface ClientProfile {
   isConfigured: boolean;
 }
 
+interface MenuState {
+  open: boolean;
+  x: number;
+  y: number;
+  actions: ContextMenuAction[];
+}
+
+const MENU_INICIAL: MenuState = {
+  open: false,
+  x: 0,
+  y: 0,
+  actions: [],
+};
+
 export function ClientProfilesPage() {
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState<ClientProfile[]>([]);
+  const [menu, setMenu] = useState<MenuState>(MENU_INICIAL);
+  const [clientReplicacao, setClientReplicacao] = useState<string | null>(null);
 
   useEffect(() => {
     api.clientProfiles.listar().then(setProfiles);
   }, []);
 
+  function abrirMenu(event: React.MouseEvent, actions: ContextMenuAction[]) {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({
+      open: true,
+      x: event.clientX,
+      y: event.clientY,
+      actions,
+    });
+  }
+
   return (
-    <div className="space-y-8">
+    <div
+      className="space-y-8"
+      onContextMenu={(event) => {
+        const alvo = event.target as HTMLElement;
+        if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {
+          return;
+        }
+
+        abrirMenu(event, [
+          {
+            label: 'Propriedades',
+            onSelect: () => navigate('/client-profiles'),
+          },
+        ]);
+      }}
+    >
       <section className="grid gap-4 xl:grid-cols-[1.35fr_0.75fr]">
         <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-6">
           <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Client Profiles</p>
@@ -52,9 +97,27 @@ export function ClientProfilesPage() {
         {profiles.map((profile) => (
           <article key={profile.clientId} className="rounded-[26px] border border-white/8 bg-white/[0.03] p-5 transition hover:border-white/14 hover:bg-white/[0.05]">
             <div
+              data-card-menu
               role="link"
               tabIndex={0}
               onClick={() => navigate(`/client-profiles/${profile.clientId}`)}
+              onContextMenu={(event) => {
+                const actions: ContextMenuAction[] = [
+                  {
+                    label: 'Propriedades',
+                    onSelect: () => navigate(`/client-profiles/${profile.clientId}`),
+                  },
+                ];
+
+                if (possuiReplicacaoCompativel(profile.clientId)) {
+                  actions.push({
+                    label: 'Replicar',
+                    onSelect: () => setClientReplicacao(profile.clientId),
+                  });
+                }
+
+                abrirMenu(event, actions);
+              }}
               onKeyDown={(event) => {
                 if (event.key !== 'Enter' && event.key !== ' ') return;
                 event.preventDefault();
@@ -104,6 +167,20 @@ export function ClientProfilesPage() {
           </article>
         ))}
       </section>
+
+      <ContextMenu
+        open={menu.open}
+        x={menu.x}
+        y={menu.y}
+        actions={menu.actions}
+        onClose={() => setMenu(MENU_INICIAL)}
+      />
+
+      <ReplicationModal
+        open={!!clientReplicacao}
+        sourceClient={clientReplicacao ?? ''}
+        onClose={() => setClientReplicacao(null)}
+      />
     </div>
   );
 }
