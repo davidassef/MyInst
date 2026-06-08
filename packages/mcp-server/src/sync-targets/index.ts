@@ -1220,11 +1220,49 @@ async function escreverEstruturaOpenCode(items: ItemSincronizavel[], target: Syn
   const base = target.scope === 'global'
     ? join(homedir(), '.config', 'opencode')
     : resolverRaizProjetoPorPath(target.detectedPaths[0]);
-  return escreverComRegras(items, target, {
-    instruction: { file: join(base, 'AGENTS.md') },
-    mcp_config: { file: join(base, 'opencode.json') },
-    setting: { file: join(base, 'opencode.json') },
-  });
+  const written: EscritaCliente['written'] = [];
+  const ignored: EscritaCliente['ignored'] = [];
+  const instrucoes = items.filter((item) => item.type === 'instruction');
+  const configs = items.filter((item) => item.type === 'setting' || item.type === 'mcp_config');
+
+  if (instrucoes.length > 0) {
+    const caminhoInstrucoes = join(base, 'AGENTS.md');
+    await mkdir(dirname(caminhoInstrucoes), { recursive: true });
+    await writeFile(caminhoInstrucoes, combinarInstrucoesOpenCode(instrucoes), 'utf-8');
+
+    for (const item of instrucoes) {
+      written.push({ path: caminhoInstrucoes, type: item.type, slug: item.slug });
+    }
+  }
+
+  if (configs.length > 0) {
+    const caminhoConfig = join(base, 'opencode.json');
+    const configPrincipal = escolherConfigPrincipalOpenCode(configs);
+    await mkdir(dirname(caminhoConfig), { recursive: true });
+    await writeFile(caminhoConfig, configPrincipal.body, 'utf-8');
+    written.push({ path: caminhoConfig, type: configPrincipal.type, slug: configPrincipal.slug });
+
+    for (const item of configs) {
+      if (item.slug === configPrincipal.slug && item.type === configPrincipal.type) continue;
+      ignored.push({ type: item.type, slug: item.slug, reason: 'opencode.json já foi reservado por um item de maior precedência' });
+    }
+  }
+
+  for (const item of items) {
+    if (item.type === 'instruction' || item.type === 'setting' || item.type === 'mcp_config') {
+      continue;
+    }
+
+    ignored.push({ type: item.type, slug: item.slug, reason: 'tipo sem suporte nativo neste cliente' });
+  }
+
+  return {
+    clientId: target.clientId,
+    clientName: target.clientName,
+    scope: target.scope,
+    written,
+    ignored,
+  };
 }
 
 async function escreverEstruturaAider(items: ItemSincronizavel[], target: SyncTarget): Promise<EscritaCliente> {
@@ -1605,6 +1643,31 @@ function obterMetadataLeitura(
   return {
     myinstSourceCategory: categoria,
   };
+}
+
+function combinarInstrucoesOpenCode(instrucoes: ItemSincronizavel[]) {
+  if (instrucoes.length === 1) {
+    return instrucoes[0].body;
+  }
+
+  return [
+    '<!-- myinst-managed: true -->',
+    '# MyInst OpenCode Instructions',
+    '',
+    'Arquivo gerado pelo MyInst a partir de multiplas instrucoes compativeis.',
+    '',
+    ...instrucoes.flatMap((item, indice) => [
+      `## ${item.title}`,
+      '',
+      item.body.trim(),
+      ...(indice === instrucoes.length - 1 ? [] : ['', '---', '']),
+    ]),
+    '',
+  ].join('\n');
+}
+
+function escolherConfigPrincipalOpenCode(configs: ItemSincronizavel[]) {
+  return configs.find((item) => item.type === 'setting') ?? configs[0];
 }
 
 function resolverCaminhoClaudeGlobal(base: string, item: ItemSincronizavel) {

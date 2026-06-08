@@ -7,6 +7,7 @@ import { aplicarConteudo } from './applier/index.js';
 import type { ConflictStrategy } from './applier/index.js';
 import { detectarNomeRepositorio } from './importer/index.js';
 import { montarPreviewPull } from './pull-preview.js';
+import { listarMatrizCompatibilidadeReplicacao, planejarReplicacaoClientProfile } from './client-profile-replication.js';
 import {
   exportarParaClientesNativos,
   importarTargetsDetectados,
@@ -83,6 +84,75 @@ server.tool(
     return {
       content: [{ type: 'text', text: JSON.stringify(projetos, null, 2) }],
     };
+  },
+);
+
+server.tool(
+  'myinst_replicate_client_profile',
+  'Replica configuracoes globais compatíveis entre Client Profiles suportados, copiando apenas itens ausentes por padrão.',
+  {
+    sourceClient: z.string().describe('Client profile global de origem, como claude ou codex'),
+    targetClient: z.string().describe('Client profile global de destino, como opencode'),
+    dryRun: z.boolean().describe('Mostra o plano de replicação sem gravar nada').optional(),
+    types: z.array(z.string()).describe('Filtra os tipos candidatos à replicação').optional(),
+    overwrite: z.boolean().describe('Permite atualizar itens já existentes quando o tipo for suportado').optional(),
+  },
+  async ({ sourceClient, targetClient, dryRun, types, overwrite }) => {
+    try {
+      const sourceItems = normalizarItensClientProfile(await client.listarItensClientProfile(sourceClient, { active: true }));
+      const targetItems = normalizarItensClientProfile(await client.listarItensClientProfile(targetClient, { active: true }));
+      const plano = planejarReplicacaoClientProfile({
+        sourceClient,
+        targetClient,
+        sourceItems,
+        targetItems,
+        types,
+        overwrite,
+      });
+
+      if (plano.compatible.length === 0) {
+        return respostaTexto([
+          `Nenhum item replicável encontrado para ${sourceClient} -> ${targetClient}.`,
+          `Compatibilidade suportada no v1: ${listarParesSuportadosReplicacao()}`,
+          montarResumoReplicacao(plano),
+        ].join('\n\n'));
+      }
+
+      if (dryRun) {
+        return respostaTexto([
+          `[DRY RUN] Replicação de Client Profile ${sourceClient} -> ${targetClient}`,
+          'Política padrão: copiar apenas itens ausentes.',
+          montarResumoReplicacao(plano),
+        ].join('\n\n'));
+      }
+
+      const itensParaEnviar = [...plano.toCreate, ...plano.toUpdate];
+      if (itensParaEnviar.length === 0) {
+        return respostaTexto([
+          `Nenhum item precisou ser gravado em ${targetClient}.`,
+          montarResumoReplicacao(plano),
+        ].join('\n\n'));
+      }
+
+      const resultado = await client.push({
+        scope: 'global',
+        clientId: targetClient,
+        items: itensParaEnviar,
+      });
+
+      return respostaTexto([
+        `Replicação concluída: ${sourceClient} -> ${targetClient}`,
+        `Política aplicada: overwrite=${overwrite === true ? 'true' : 'false'}`,
+        montarResumoReplicacao(plano),
+        `Gravação no vault: criados=${resultado.created.length}, atualizados=${resultado.updated.length}`,
+      ].join('\n\n'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha desconhecida na replicação de client profile';
+      return respostaTexto([
+        message,
+        `Compatibilidade suportada no v1: ${listarParesSuportadosReplicacao()}`,
+      ].join('\n'));
+    }
   },
 );
 
@@ -1053,4 +1123,82 @@ function respostaTexto(text: string) {
   return {
     content: [{ type: 'text' as const, text }],
   };
+}
+
+function normalizarItensClientProfile(items: Array<{
+  type: string;
+  slug: string;
+  title: string;
+  body: string;
+  metadata: Record<string, unknown>;
+  tags: string[];
+}>) {
+  return items
+    .filter((item): item is ItemSincronizavel => TIPOS_CANONICOS.includes(item.type as TipoSincronizavel))
+    .map((item) => ({
+      type: item.type as TipoSincronizavel,
+      slug: item.slug,
+      title: item.title,
+      body: item.body,
+      metadata: item.metadata,
+      tags: item.tags,
+    }));
+}
+
+function listarParesSuportadosReplicacao() {
+  return listarMatrizCompatibilidadeReplicacao()
+    .filter((entry) => entry.status === 'supported')
+    .map((entry) => `${entry.sourceClient}->${entry.targetClient}`)
+    .join(', ');
+}
+
+function montarResumoReplicacao(plano: {
+  sourceClient: string;
+  targetClient: string;
+  compatible: Array<{ type: string; slug: string; reason?: string }>;
+  toCreate: Array<{ type: string; slug: string }>;
+  toUpdate: Array<{ type: string; slug: string }>;
+  skippedExisting: Array<{ type: string; slug: string; reason?: string }>;
+  ignoredIncompatible: Array<{ type: string; slug: string; reason?: string }>;
+  ignoredNoRule: Array<{ type: string; slug: string; reason?: string }>;
+}) {
+  const linhas = [
+    `Par origem/destino: ${plano.sourceClient} -> ${plano.targetClient}`,
+    `Itens compatíveis encontrados: ${plano.compatible.length}`,
+    `Itens a criar: ${plano.toCreate.length}`,
+    `Itens a atualizar: ${plano.toUpdate.length}`,
+    `Itens ignorados por já existirem: ${plano.skippedExisting.length}`,
+    `Itens ignorados por incompatibilidade: ${plano.ignoredIncompatible.length}`,
+    `Itens ignorados por falta de regra: ${plano.ignoredNoRule.length}`,
+  ];
+
+  if (plano.compatible.length > 0) {
+    linhas.push('', 'Compatíveis:');
+    for (const item of plano.compatible) {
+      linhas.push(`  - [${item.type}] ${item.slug}`);
+    }
+  }
+
+  if (plano.skippedExisting.length > 0) {
+    linhas.push('', 'Já existentes no destino:');
+    for (const item of plano.skippedExisting) {
+      linhas.push(`  - [${item.type}] ${item.slug}: ${item.reason}`);
+    }
+  }
+
+  if (plano.ignoredIncompatible.length > 0) {
+    linhas.push('', 'Ignorados por incompatibilidade:');
+    for (const item of plano.ignoredIncompatible) {
+      linhas.push(`  - [${item.type}] ${item.slug}: ${item.reason}`);
+    }
+  }
+
+  if (plano.ignoredNoRule.length > 0) {
+    linhas.push('', 'Ignorados por falta de regra:');
+    for (const item of plano.ignoredNoRule) {
+      linhas.push(`  - [${item.type}] ${item.slug}: ${item.reason}`);
+    }
+  }
+
+  return linhas.join('\n');
 }

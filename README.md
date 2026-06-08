@@ -170,6 +170,7 @@ Exemplo de configuração:
 | `myinst_pull` | materializa o vault em formato canônico ou nativo |
 | `myinst_push` | envia mudanças locais detectadas para o vault |
 | `myinst_import` | importa estruturas locais para o vault |
+| `myinst_replicate_client_profile` | replica configurações globais compatíveis entre clients suportados |
 | `myinst_search` | descoberta pontual por busca |
 | `myinst_status` | mudanças temporais no vault |
 
@@ -193,6 +194,38 @@ myinst_import ou myinst_push com clients explícitos
 ```text
 myinst_pull targetFormat="native" clients=["cursor"]
 ```
+
+### 4. Replicação entre clients
+
+No v1, a replicação entre clients atua apenas sobre `Client Profiles` globais e só expõe pares suportados explicitamente.
+
+Exemplo:
+
+```text
+myinst_replicate_client_profile sourceClient="claude" targetClient="opencode" dryRun=true
+```
+
+Política padrão:
+
+- copiar apenas itens ausentes
+- não sobrescrever o destino por padrão
+- ignorar e relatar tipos sem equivalente nativo claro
+
+## Compatibilidade de replicação entre clients
+
+| Origem | Destino | Estado no v1 | Observação |
+|--------|---------|--------------|------------|
+| Claude | OpenCode | `suportado` | replica apenas `instruction` |
+| Codex | OpenCode | `suportado` | replica apenas `instruction` |
+| Claude | Codex | `planejado` | fora do v1 |
+| Codex | Claude | `planejado` | fora do v1 |
+| OpenCode | Claude | `planejado` | fora do v1 |
+| OpenCode | Codex | `planejado` | fora do v1 |
+| Cursor | OpenCode | `não suportado no v1` | feature futura |
+| Gemini | OpenCode | `não suportado no v1` | feature futura |
+| Qwen | OpenCode | `não suportado no v1` | feature futura |
+| Aider | OpenCode | `não suportado no v1` | feature futura |
+| Antigravity | OpenCode | `não suportado no v1` | feature futura |
 
 ## Workspaces
 

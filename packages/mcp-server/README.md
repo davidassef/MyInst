@@ -21,6 +21,7 @@ MYINST_API_KEY=myinst_xxx MYINST_SERVER=https://api-myinst.lotoscore.com.br myin
 - exporta para formatos nativos de clientes suportados
 - importa estruturas locais conhecidas
 - sincroniza mudanças locais de volta para o backend
+- replica client profiles globais compatíveis entre clients suportados
 
 ## Fluxo oficial
 
@@ -63,6 +64,25 @@ Clientes desta fase:
 - Qwen Code
 - Aider
 - Antigravity
+
+## Replicação entre clients
+
+O v1 expõe replicação segura apenas para `Client Profiles` globais e somente nos pares:
+
+- `claude -> opencode`
+- `codex -> opencode`
+
+Tool:
+
+```text
+myinst_replicate_client_profile
+```
+
+Política padrão:
+
+- copiar apenas itens ausentes
+- não sobrescrever por padrão
+- ignorar e relatar tipos sem equivalente nativo claro
 
 ## Tipos sincronizáveis
 

@@ -180,6 +180,36 @@ Parâmetros principais:
 - `clients?`
 - `scope?`
 
+### `myinst_replicate_client_profile`
+
+Replica `Client Profiles` globais compatíveis entre clients suportados no v1.
+
+Parâmetros principais:
+
+- `sourceClient`
+- `targetClient`
+- `dryRun?`
+- `types?`
+- `overwrite?`
+
+Política padrão:
+
+- copiar apenas itens ausentes
+- não sobrescrever o destino por padrão
+- ignorar e relatar tipos sem equivalente nativo claro
+
+Exemplo de dry run:
+
+```text
+myinst_replicate_client_profile sourceClient="claude" targetClient="opencode" dryRun=true
+```
+
+Exemplo de execução real:
+
+```text
+myinst_replicate_client_profile sourceClient="codex" targetClient="opencode"
+```
+
 ### `myinst_search`
 
 Busca textual no vault para descoberta.
@@ -209,6 +239,38 @@ Use `dryRun: true` para ver:
 - tipos encontrados
 - itens compatíveis
 - itens ignorados por falta de suporte nativo
+
+## Replicação entre clients
+
+O v1 da replicação entre clients é propositalmente restrito a `Client Profiles` globais.
+
+Pares suportados agora:
+
+| Origem | Destino | Estado | Tipos realmente replicados |
+|--------|---------|--------|----------------------------|
+| Claude | OpenCode | `suportado` | `instruction` |
+| Codex | OpenCode | `suportado` | `instruction` |
+
+Pares documentados como futuros:
+
+| Origem | Destino | Estado |
+|--------|---------|--------|
+| Claude | Codex | `planejado` |
+| Codex | Claude | `planejado` |
+| OpenCode | Claude | `planejado` |
+| OpenCode | Codex | `planejado` |
+| Cursor | OpenCode | `não suportado no v1` |
+| Gemini | OpenCode | `não suportado no v1` |
+| Qwen | OpenCode | `não suportado no v1` |
+| Aider | OpenCode | `não suportado no v1` |
+| Antigravity | OpenCode | `não suportado no v1` |
+
+Limites do v1:
+
+- atua apenas sobre `Client Profiles`, não sobre `workspace/project`
+- não converte configs heterogêneas como `settings.json`, `config.toml` e `opencode.json`
+- não rebaixa automaticamente `agent`, `command`, `output_style` ou `setting` para `instruction`
+- usa `dryRun` como caminho recomendado antes da gravação real
 
 ## Observações
 

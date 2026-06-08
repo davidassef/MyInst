@@ -253,6 +253,44 @@ describe('sync targets', () => {
       await rm(destino, { recursive: true, force: true });
     }
   });
+
+  it('combina múltiplas instructions ao exportar para OpenCode', async () => {
+    const modulo = await importarModulo();
+    const destino = await mkdtemp(join(tmpdir(), 'myinst-opencode-destino-'));
+
+    try {
+      await writeFile(join(destino, 'opencode.json'), '{\n  "$schema": "https://opencode.ai/config.json"\n}');
+
+      const resultado = await modulo.exportarParaClientesNativos(destino, [
+        {
+          type: 'instruction',
+          slug: 'claude',
+          title: 'Claude',
+          body: 'Instrucao base',
+          metadata: {},
+          tags: [],
+        },
+        {
+          type: 'instruction',
+          slug: 'global-guidelines',
+          title: 'Global Guidelines',
+          body: 'Guidelines globais',
+          metadata: {},
+          tags: [],
+        },
+      ], 'project', ['opencode']);
+
+      expect(resultado.targets).toHaveLength(1);
+      expect(resultado.results[0].written).toHaveLength(2);
+      const conteudo = await import('node:fs/promises').then(({ readFile }) => readFile(join(destino, 'AGENTS.md'), 'utf-8'));
+      expect(conteudo).toContain('Claude');
+      expect(conteudo).toContain('Global Guidelines');
+      expect(conteudo).toContain('Instrucao base');
+      expect(conteudo).toContain('Guidelines globais');
+    } finally {
+      await rm(destino, { recursive: true, force: true });
+    }
+  });
 });
 
 async function importarModulo() {
