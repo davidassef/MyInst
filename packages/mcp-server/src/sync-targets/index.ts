@@ -67,6 +67,9 @@ interface ContextoSync {
 
 const TIPOS_FULL: TipoSincronizavel[] = ['skill', 'instruction', 'mcp_config', 'agent', 'hook', 'memory', 'snippet'];
 const TIPOS_PARTIAL: TipoSincronizavel[] = ['instruction', 'mcp_config'];
+const TIPOS_CLAUDE_GLOBAL: TipoSincronizavel[] = ['instruction', 'agent'];
+const TIPOS_CURSOR: TipoSincronizavel[] = ['skill', 'instruction', 'mcp_config'];
+const TIPOS_QWEN: TipoSincronizavel[] = ['instruction'];
 const DIRETORIOS_IGNORADOS = new Set([
   'node_modules',
   '.git',
@@ -242,6 +245,30 @@ function criarAdapterClaude(): ClienteAdapter {
     escopoSuportado: 'all',
     tiposSuportados: TIPOS_FULL,
     detectar: async (ctx, scope) => {
+      if (scope !== 'project') {
+        const baseGlobal = join(ctx.userHome, '.claude');
+        const encontradosGlobais = await filtrarExistentes([
+          join(baseGlobal, 'CLAUDE.md'),
+          join(baseGlobal, 'GLOBAL_GUIDELINES.md'),
+          join(baseGlobal, 'agents'),
+        ]);
+
+        if (encontradosGlobais.length > 0) {
+          return [{
+            clientId: 'claude',
+            clientName: 'Claude Code',
+            supportLevel: 'full',
+            scope: 'global',
+            detectedPaths: encontradosGlobais,
+            supportedTypes: TIPOS_CLAUDE_GLOBAL,
+            estimatedItemCount:
+              (await existe(join(baseGlobal, 'CLAUDE.md')) ? 1 : 0)
+              + (await existe(join(baseGlobal, 'GLOBAL_GUIDELINES.md')) ? 1 : 0)
+              + await contarArquivosMarkdownRecursivo(join(baseGlobal, 'agents')),
+          }];
+        }
+      }
+
       if (scope === 'global') return [];
       if (ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'claude')) return [];
 
@@ -279,6 +306,10 @@ function criarAdapterClaude(): ClienteAdapter {
       }];
     },
     ler: async (target) => {
+      if (target.scope === 'global') {
+        return lerEstruturaClaudeGlobal(join(homedir(), '.claude'));
+      }
+
       const raizProjeto = dirname(dirname(target.detectedPaths[0] ?? join(process.cwd(), '.claude', 'skills')));
       return lerEstruturaClaude(raizProjeto);
     },
@@ -367,7 +398,7 @@ function criarAdapterCursor(): ClienteAdapter {
     nome: 'Cursor',
     nivelSuporte: 'partial',
     escopoSuportado: 'all',
-    tiposSuportados: TIPOS_PARTIAL,
+    tiposSuportados: TIPOS_CURSOR,
     detectar: async (ctx, scope) => {
       const targets: SyncTarget[] = [];
 
@@ -377,6 +408,7 @@ function criarAdapterCursor(): ClienteAdapter {
           const encontrados = await filtrarExistentes([
             join(base, 'rules'),
             join(base, 'mcp.json'),
+            join(base, 'skills-cursor'),
           ]);
 
           if (encontrados.length > 0) {
@@ -386,8 +418,9 @@ function criarAdapterCursor(): ClienteAdapter {
               supportLevel: 'partial',
               scope: 'project',
               detectedPaths: encontrados,
-              supportedTypes: TIPOS_PARTIAL,
+              supportedTypes: TIPOS_CURSOR,
               estimatedItemCount: await contarArquivosPorExtensao(join(base, 'rules'), ['.mdc', '.md'])
+                + await contarArquivosSkillPorEstrutura(join(base, 'skills-cursor'))
                 + (await existe(join(base, 'mcp.json')) ? 1 : 0),
             });
           }
@@ -399,6 +432,7 @@ function criarAdapterCursor(): ClienteAdapter {
         const encontrados = await filtrarExistentes([
           join(base, 'rules'),
           join(base, 'mcp.json'),
+          join(base, 'skills-cursor'),
         ]);
 
         if (encontrados.length > 0) {
@@ -408,8 +442,9 @@ function criarAdapterCursor(): ClienteAdapter {
             supportLevel: 'partial',
             scope: 'global',
             detectedPaths: encontrados,
-            supportedTypes: TIPOS_PARTIAL,
+            supportedTypes: TIPOS_CURSOR,
             estimatedItemCount: await contarArquivosPorExtensao(join(base, 'rules'), ['.mdc', '.md'])
+              + await contarArquivosSkillPorEstrutura(join(base, 'skills-cursor'))
               + (await existe(join(base, 'mcp.json')) ? 1 : 0),
           });
         }
@@ -417,7 +452,11 @@ function criarAdapterCursor(): ClienteAdapter {
 
       return targets;
     },
-    ler: async (target) => lerEstruturaCursor(resolverBaseOculta(target, '.cursor')),
+    ler: async (target) => lerEstruturaCursor(
+      target.scope === 'global'
+        ? join(homedir(), '.cursor')
+        : join(resolverRaizProjetoPorPath(target.detectedPaths[0]), '.cursor'),
+    ),
     escrever: async (items, target) => escreverEstruturaCursor(items, target),
   };
 }
@@ -552,9 +591,24 @@ function criarAdapterQwen(): ClienteAdapter {
     id: 'qwen',
     nome: 'Qwen Code',
     nivelSuporte: 'partial',
-    escopoSuportado: 'project',
-    tiposSuportados: ['instruction'],
+    escopoSuportado: 'all',
+    tiposSuportados: TIPOS_QWEN,
     detectar: async (ctx, scope) => {
+      if (scope !== 'project') {
+        const caminhoGlobal = join(ctx.userHome, '.qwen', 'QWEN.md');
+        if (await existe(caminhoGlobal)) {
+          return [{
+            clientId: 'qwen',
+            clientName: 'Qwen Code',
+            supportLevel: 'partial',
+            scope: 'global',
+            detectedPaths: [caminhoGlobal],
+            supportedTypes: TIPOS_QWEN,
+            estimatedItemCount: 1,
+          }];
+        }
+      }
+
       if (scope === 'global') return [];
       if (ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'qwen')) return [];
 
@@ -572,9 +626,20 @@ function criarAdapterQwen(): ClienteAdapter {
       }];
     },
     ler: async (target) => lerArquivosEspecificos([
-      { path: target.detectedPaths[0], slug: 'agents', type: 'instruction' },
+      {
+        path: target.detectedPaths[0],
+        slug: target.scope === 'global' ? 'qwen' : 'agents',
+        type: 'instruction',
+      },
     ]),
-    escrever: async (items, target) => escreverArquivoUnico(items, target, 'instruction', (entry) => join(resolverRaizProjetoPorPath(entry.detectedPaths[0]), '.qwen', 'AGENTS.md')),
+    escrever: async (items, target) => escreverArquivoUnico(
+      items,
+      target,
+      'instruction',
+      (entry) => entry.scope === 'global'
+        ? join(homedir(), '.qwen', 'QWEN.md')
+        : join(resolverRaizProjetoPorPath(entry.detectedPaths[0]), '.qwen', 'AGENTS.md'),
+    ),
   };
 }
 
@@ -674,14 +739,18 @@ function criarAdapterAntigravity(): ClienteAdapter {
       }
 
       if (scope !== 'project') {
-        const caminhoGlobal = join(ctx.userHome, '.gemini', 'antigravity-cli', 'settings.json');
-        if (await existe(caminhoGlobal)) {
+        const caminhosGlobais = await filtrarExistentes([
+          join(ctx.userHome, '.gemini', 'antigravity-cli', 'settings.json'),
+          join(ctx.userHome, '.antigravity', 'argv.json'),
+        ]);
+
+        if (caminhosGlobais.length > 0) {
           targets.push({
             clientId: 'antigravity',
             clientName: 'Antigravity',
             supportLevel: 'experimental',
             scope: 'global',
-            detectedPaths: [caminhoGlobal],
+            detectedPaths: caminhosGlobais,
             supportedTypes: ['mcp_config'],
             estimatedItemCount: 1,
           });
@@ -742,8 +811,17 @@ async function lerEstruturaCodex(base: string, global = false): Promise<ItemSinc
 
 async function lerEstruturaCursor(base: string): Promise<ItemSincronizavel[]> {
   const itens = new Map<string, ItemSincronizavel>();
-  await lerMarkdownsDiretos(base, 'instruction', itens, ['.mdc', '.md']);
-  await lerArquivoConfig(join(dirname(base), 'mcp.json'), 'cursor-mcp', 'Cursor MCP', itens);
+  await lerMarkdownsDiretos(join(base, 'rules'), 'instruction', itens, ['.mdc', '.md']);
+  await lerSkillsPorEstrutura(join(base, 'skills-cursor'), itens);
+  await lerArquivoConfig(join(base, 'mcp.json'), 'cursor-mcp', 'Cursor MCP', itens);
+  return [...itens.values()];
+}
+
+async function lerEstruturaClaudeGlobal(base: string): Promise<ItemSincronizavel[]> {
+  const itens = new Map<string, ItemSincronizavel>();
+  await lerArquivoInstrucao(join(base, 'CLAUDE.md'), 'claude', itens);
+  await lerArquivoInstrucao(join(base, 'GLOBAL_GUIDELINES.md'), 'global-guidelines', itens);
+  await lerMarkdownsDiretos(join(base, 'agents'), 'agent', itens, ['.md'], true);
   return [...itens.values()];
 }
 
@@ -818,6 +896,20 @@ async function lerSkillsCodex(diretorioSkills: string, itens: Map<string, ItemSi
       if (DIRETORIOS_IGNORADOS.has(subentrada)) continue;
       await registrarSkillCodex(join(diretorioSkills, entrada, subentrada, 'SKILL.md'), subentrada, itens);
     }
+  }
+}
+
+async function lerSkillsPorEstrutura(diretorioSkills: string, itens: Map<string, ItemSincronizavel>): Promise<void> {
+  let entradas: string[];
+  try {
+    entradas = await readdir(diretorioSkills);
+  } catch {
+    return;
+  }
+
+  for (const entrada of entradas) {
+    if (DIRETORIOS_IGNORADOS.has(entrada)) continue;
+    await registrarSkillCodex(join(diretorioSkills, entrada, 'SKILL.md'), entrada, itens);
   }
 }
 
@@ -965,10 +1057,13 @@ async function escreverEstruturaCodex(items: ItemSincronizavel[], target: SyncTa
 }
 
 async function escreverEstruturaCursor(items: ItemSincronizavel[], target: SyncTarget): Promise<EscritaCliente> {
-  const base = resolverBaseOculta(target, '.cursor');
+  const base = target.scope === 'global'
+    ? join(homedir(), '.cursor')
+    : join(resolverRaizProjetoPorPath(target.detectedPaths[0]), '.cursor');
   return escreverComRegras(items, target, {
-    instruction: { dir: base, ext: '.mdc' },
-    mcp_config: { file: join(dirname(base), 'mcp.json') },
+    skill: { dir: join(base, 'skills-cursor'), ext: '/SKILL.md' },
+    instruction: { dir: join(base, 'rules'), ext: '.mdc' },
+    mcp_config: { file: join(base, 'mcp.json') },
   });
 }
 
@@ -994,11 +1089,11 @@ async function escreverEstruturaAider(items: ItemSincronizavel[], target: SyncTa
 
 async function escreverEstruturaAntigravity(items: ItemSincronizavel[], target: SyncTarget): Promise<EscritaCliente> {
   const base = target.scope === 'global'
-    ? join(homedir(), '.gemini', 'antigravity-cli')
+    ? join(homedir(), '.antigravity')
     : resolverRaizProjetoPorPath(target.detectedPaths[0]);
   return escreverComRegras(items, target, {
     instruction: target.scope === 'global' ? undefined : { file: join(base, '.antigravity') },
-    mcp_config: target.scope === 'global' ? { file: join(base, 'settings.json') } : { file: join(base, '.antigravity') },
+    mcp_config: target.scope === 'global' ? { file: join(base, 'argv.json') } : { file: join(base, '.antigravity') },
   });
 }
 
@@ -1102,7 +1197,7 @@ function obterRaizesGlobaisCliente(userHome: string, clientId: string) {
     case 'aider':
       return [userHome];
     case 'antigravity':
-      return [join(userHome, '.gemini', 'antigravity-cli')];
+      return [join(userHome, '.gemini', 'antigravity-cli'), join(userHome, '.antigravity')];
     default:
       return [];
   }
@@ -1207,6 +1302,25 @@ async function contarSkillsCodex(dir: string) {
 
     const subentradas = await listarEntradas(join(dir, entrada));
     total += subentradas.filter((subentrada) => !DIRETORIOS_IGNORADOS.has(subentrada)).length;
+  }
+
+  return total;
+}
+
+async function contarArquivosSkillPorEstrutura(dir: string) {
+  let entradas: string[];
+  try {
+    entradas = await readdir(dir);
+  } catch {
+    return 0;
+  }
+
+  let total = 0;
+  for (const entrada of entradas) {
+    if (DIRETORIOS_IGNORADOS.has(entrada)) continue;
+    if (await existe(join(dir, entrada, 'SKILL.md'))) {
+      total += 1;
+    }
   }
 
   return total;

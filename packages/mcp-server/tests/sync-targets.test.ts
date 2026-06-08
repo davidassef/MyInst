@@ -15,6 +15,10 @@ describe('sync targets', () => {
     await mkdir(join(tempDir, '.cursor', 'rules'), { recursive: true });
     await mkdir(join(tempDir, '.codex', 'skills', 'infra-local'), { recursive: true });
     await mkdir(join(tempHome, '.codex', 'skills', 'global-skill'), { recursive: true });
+    await mkdir(join(tempHome, '.claude', 'agents'), { recursive: true });
+    await mkdir(join(tempHome, '.cursor', 'skills-cursor', 'cursor-global-skill'), { recursive: true });
+    await mkdir(join(tempHome, '.qwen'), { recursive: true });
+    await mkdir(join(tempHome, '.antigravity'), { recursive: true });
 
     await writeFile(join(tempDir, '.claude', 'skills', 'tdd.md'), 'Skill TDD');
     await writeFile(join(tempDir, '.claude', 'CLAUDE.md'), 'Instruções Claude');
@@ -28,6 +32,12 @@ describe('sync targets', () => {
     await writeFile(join(tempHome, '.codex', 'AGENTS.md'), 'Global Codex');
     await writeFile(join(tempHome, '.codex', 'config.toml'), '[mcp_servers]');
     await writeFile(join(tempHome, '.codex', 'skills', 'global-skill', 'SKILL.md'), 'Skill Global');
+    await writeFile(join(tempHome, '.claude', 'CLAUDE.md'), 'Claude Global');
+    await writeFile(join(tempHome, '.claude', 'GLOBAL_GUIDELINES.md'), 'Guidelines Globais');
+    await writeFile(join(tempHome, '.claude', 'agents', 'reviewer.md'), 'Agente Revisor');
+    await writeFile(join(tempHome, '.cursor', 'skills-cursor', 'cursor-global-skill', 'SKILL.md'), 'Skill Cursor Global');
+    await writeFile(join(tempHome, '.qwen', 'QWEN.md'), 'Qwen Global');
+    await writeFile(join(tempHome, '.antigravity', 'argv.json'), '{"antigravity":true}');
   });
 
   beforeEach(() => {
@@ -63,6 +73,33 @@ describe('sync targets', () => {
 
     expect(targets).toHaveLength(2);
     expect(targets.map((target) => target.scope).sort()).toEqual(['global', 'project']);
+  });
+
+  it('detecta clientes globais suportados na home do usuário', async () => {
+    const modulo = await importarModulo();
+    const targets = await modulo.listarSyncTargets(tempHome, 'global', ['claude', 'cursor', 'qwen', 'antigravity']);
+
+    expect(targets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ clientId: 'claude', scope: 'global' }),
+        expect.objectContaining({ clientId: 'cursor', scope: 'global' }),
+        expect.objectContaining({ clientId: 'qwen', scope: 'global' }),
+        expect.objectContaining({ clientId: 'antigravity', scope: 'global' }),
+      ]),
+    );
+  });
+
+  it('importa ambos os arquivos globais do Claude e seus agentes', async () => {
+    const modulo = await importarModulo();
+    const importacao = await modulo.importarTargetsDetectados(tempHome, 'global', ['claude']);
+
+    expect(importacao.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'instruction', slug: 'claude' }),
+        expect.objectContaining({ type: 'instruction', slug: 'global-guidelines' }),
+        expect.objectContaining({ type: 'agent', slug: 'reviewer' }),
+      ]),
+    );
   });
 
   it('não trata ~/.codex como projeto quando a origem já é o diretório global do codex', async () => {
@@ -136,14 +173,14 @@ describe('sync targets', () => {
       ], 'project', ['cursor']);
 
       expect(resultado.targets).toHaveLength(1);
-      expect(resultado.results[0].written).toHaveLength(1);
-      expect(resultado.results[0].written[0].path).toContain('.cursor');
-      expect(resultado.results[0].ignored).toEqual([
-        expect.objectContaining({
-          type: 'skill',
-          slug: 'tdd',
-        }),
-      ]);
+      expect(resultado.results[0].written).toHaveLength(2);
+      expect(resultado.results[0].written.map((item) => item.path)).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('.cursor'),
+          expect.stringContaining('skills-cursor'),
+        ]),
+      );
+      expect(resultado.results[0].ignored).toHaveLength(0);
     } finally {
       await rm(destino, { recursive: true, force: true });
     }
