@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ShieldCheck, Waypoints } from 'lucide-react';
-import { ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
+import { ContextMenu, type ContextMenuAction, deveLiberarMenuNativo, habilitarMenuNativoUmaVez } from '@/components/ContextMenu';
 import { ReplicationModal } from '@/components/ReplicationModal';
 import { api } from '@/lib/api';
 import { possuiReplicacaoCompativel } from '@/lib/clientProfileReplication';
@@ -53,8 +53,12 @@ export function ClientProfilesPage() {
 
   return (
     <div
-      className="min-h-[calc(100vh-10rem)] space-y-8"
-      onContextMenu={(event) => {
+      className="min-h-[calc(100vh-10rem)] w-full space-y-8"
+      onContextMenuCapture={(event) => {
+        if (deveLiberarMenuNativo()) {
+          return;
+        }
+
         const alvo = event.target as HTMLElement;
         if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {
           return;
@@ -63,7 +67,7 @@ export function ClientProfilesPage() {
         abrirMenu(event, [
           {
             label: 'Propriedades',
-            onSelect: () => navigate('/client-profiles'),
+            onSelect: () => habilitarMenuNativoUmaVez(),
           },
         ]);
       }}
@@ -101,11 +105,15 @@ export function ClientProfilesPage() {
               role="link"
               tabIndex={0}
               onClick={() => navigate(`/client-profiles/${profile.clientId}`)}
-              onContextMenu={(event) => {
+              onContextMenuCapture={(event) => {
+                if (deveLiberarMenuNativo()) {
+                  return;
+                }
+
                 const actions: ContextMenuAction[] = [
                   {
                     label: 'Propriedades',
-                    onSelect: () => navigate(`/client-profiles/${profile.clientId}`),
+                    onSelect: () => habilitarMenuNativoUmaVez(),
                   },
                 ];
 

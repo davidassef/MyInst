@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FolderOpen, Pencil, Plus, ShieldCheck } from 'lucide-react';
-import { ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
+import { ContextMenu, type ContextMenuAction, deveLiberarMenuNativo, habilitarMenuNativoUmaVez } from '@/components/ContextMenu';
 import { api } from '@/lib/api';
 import { gerarSlug } from '@/lib/slug';
 
@@ -209,8 +209,12 @@ export function WorkspacePage() {
 
   return (
     <div
-      className="min-h-[calc(100vh-10rem)] space-y-8"
-      onContextMenu={(event) => {
+      className="min-h-[calc(100vh-10rem)] w-full space-y-8"
+      onContextMenuCapture={(event) => {
+        if (deveLiberarMenuNativo()) {
+          return;
+        }
+
         const alvo = event.target as HTMLElement;
         if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {
           return;
@@ -369,16 +373,22 @@ export function WorkspacePage() {
                   role="link"
                   tabIndex={0}
                   onClick={() => navigate(rotaProjeto)}
-                  onContextMenu={(event) => abrirMenu(event, [
-                    {
-                      label: 'Propriedades',
-                      onSelect: () => navigate(rotaProjeto),
-                    },
-                    {
-                      label: 'Editar',
-                      onSelect: () => iniciarEdicaoProjeto(projeto),
-                    },
-                  ])}
+                  onContextMenuCapture={(event) => {
+                    if (deveLiberarMenuNativo()) {
+                      return;
+                    }
+
+                    abrirMenu(event, [
+                      {
+                        label: 'Propriedades',
+                        onSelect: () => habilitarMenuNativoUmaVez(),
+                      },
+                      {
+                        label: 'Editar',
+                        onSelect: () => iniciarEdicaoProjeto(projeto),
+                      },
+                    ]);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return;
                     event.preventDefault();

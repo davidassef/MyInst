@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Pencil, Plus, Save, Search, Trash2, Waypoints } from 'lucide-react';
-import { ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
+import { ContextMenu, type ContextMenuAction, deveLiberarMenuNativo, habilitarMenuNativoUmaVez } from '@/components/ContextMenu';
 import { ReplicationModal } from '@/components/ReplicationModal';
 import { api } from '@/lib/api';
 import { possuiReplicacaoCompativel } from '@/lib/clientProfileReplication';
@@ -165,8 +165,12 @@ export function ClientProfilePage() {
 
   return (
     <div
-      className="min-h-[calc(100vh-10rem)] space-y-6"
-      onContextMenu={(event) => {
+      className="min-h-[calc(100vh-10rem)] w-full space-y-6"
+      onContextMenuCapture={(event) => {
+        if (deveLiberarMenuNativo()) {
+          return;
+        }
+
         const alvo = event.target as HTMLElement;
         if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {
           return;
@@ -281,12 +285,18 @@ export function ClientProfilePage() {
                 key={item.id}
                 data-card-menu
                 onClick={() => setSelecionado(item)}
-                onContextMenu={(event) => abrirMenu(event, [
+                onContextMenuCapture={(event) => {
+                  if (deveLiberarMenuNativo()) {
+                    return;
+                  }
+
+                  abrirMenu(event, [
                   {
                     label: 'Propriedades',
-                    onSelect: () => setSelecionado(item),
+                    onSelect: () => habilitarMenuNativoUmaVez(),
                   },
-                ])}
+                  ]);
+                }}
                 className={`cursor-pointer rounded-[22px] border p-4 transition ${
                   selecionado?.id === item.id
                     ? 'border-cyan-300/25 bg-cyan-300/10'

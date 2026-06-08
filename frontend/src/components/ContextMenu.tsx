@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+let liberarMenuNativoNoProximoContexto = false;
+
 export interface ContextMenuAction {
   label: string;
   onSelect: () => void;
@@ -13,6 +15,16 @@ interface ContextMenuProps {
   y: number;
   actions: ContextMenuAction[];
   onClose: () => void;
+}
+
+export function habilitarMenuNativoUmaVez() {
+  liberarMenuNativoNoProximoContexto = true;
+}
+
+export function deveLiberarMenuNativo() {
+  if (!liberarMenuNativoNoProximoContexto) return false;
+  liberarMenuNativoNoProximoContexto = false;
+  return true;
 }
 
 export function ContextMenu({ open, x, y, actions, onClose }: ContextMenuProps) {
