@@ -80,6 +80,35 @@ export function LoginPage() {
             <PainelInfo titulo="MCP pronto" valor="Codex, Claude, Cursor e clientes compatíveis" />
             <PainelInfo titulo="Conta única" valor="API key reutilizável em qualquer dispositivo" />
           </div>
+
+          <div className="vault-panel mt-8 max-w-3xl rounded-[28px] border border-white/8 p-5 md:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Instalação do MCP</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Conecte o MyInst ao seu cliente em poucos minutos</h2>
+              </div>
+              <span className="rounded-full border border-cyan-300/18 bg-cyan-300/8 px-3 py-1 text-xs uppercase tracking-[0.22em] text-cyan-100/85">
+                npm global
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <BlocoCodigo
+                titulo="1. Instale o servidor MCP"
+                codigo={`npm install -g @myinst/mcp-server`}
+              />
+
+              <BlocoCodigo
+                titulo="2. Configure no cliente MCP"
+                codigo={`{\n  "mcpServers": {\n    "myinst": {\n      "command": "myinst-mcp",\n      "env": {\n        "MYINST_API_KEY": "myinst_sua_key_aqui",\n        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"\n      }\n    }\n  }\n}`}
+              />
+            </div>
+
+            <p className="mt-4 text-sm leading-7 text-slate-400">
+              Depois do login, gere sua API key na área da conta e use o fluxo padrão do vault:
+              {' '}<span className="text-slate-200">pull, trabalho local, push</span>.
+            </p>
+          </div>
         </section>
 
         <section className="vault-panel vault-grid relative overflow-hidden rounded-[30px] border border-white/8 p-6 shadow-[0_26px_90px_rgba(0,0,0,0.38)] md:p-8">
@@ -186,5 +215,16 @@ function CampoRotulo({ label, input }: { label: string; input: React.ReactNode }
       <span className="mb-2 block text-sm text-slate-400">{label}</span>
       {input}
     </label>
+  );
+}
+
+function BlocoCodigo({ titulo, codigo }: { titulo: string; codigo: string }) {
+  return (
+    <div className="rounded-3xl border border-white/8 bg-[#050c14]/90 p-4">
+      <p className="text-sm font-medium text-slate-200">{titulo}</p>
+      <pre className="mt-3 overflow-x-auto rounded-2xl border border-white/6 bg-slate-950/80 p-4 text-xs leading-6 text-cyan-100">
+        <code>{codigo}</code>
+      </pre>
+    </div>
   );
 }

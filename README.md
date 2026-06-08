@@ -34,6 +34,41 @@ O MyInst resolve isso com:
 - quem precisa self-hosting e controle sobre o backend
 - quem quer um vault pessoal, não um marketplace público de prompts
 
+## Instale o MCP via npm
+
+O jeito mais rápido de conectar o MyInst ao seu cliente MCP é instalar o servidor local pelo npm:
+
+```bash
+npm install -g @myinst/mcp-server
+```
+
+Depois configure o cliente com:
+
+- `command`: `myinst-mcp`
+- `MYINST_API_KEY`: sua API key da conta
+- `MYINST_SERVER`: `https://api-myinst.lotoscore.com.br`
+
+Exemplo:
+
+```json
+{
+  "mcpServers": {
+    "myinst": {
+      "command": "myinst-mcp",
+      "env": {
+        "MYINST_API_KEY": "myinst_sua_key_aqui",
+        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
+      }
+    }
+  }
+}
+```
+
+Referências:
+
+- [docs/mcp-server.md](./docs/mcp-server.md)
+- [packages/mcp-server/README.md](./packages/mcp-server/README.md)
+
 ## Como funciona
 
 ```mermaid

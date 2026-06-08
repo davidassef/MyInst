@@ -17,23 +17,43 @@ export function ApiKeysPage() {
   const [nome, setNome] = useState('');
   const [novaKey, setNovaKey] = useState('');
   const [copiado, setCopiado] = useState(false);
+  const [erro, setErro] = useState('');
+  const [carregando, setCarregando] = useState(true);
+  const [removendoKeyId, setRemovendoKeyId] = useState<string | null>(null);
 
   useEffect(() => {
-    api.auth.listarApiKeys().then(setKeys);
+    carregarKeys();
   }, []);
 
   async function criarKey(e: React.FormEvent) {
     e.preventDefault();
-    const resultado = await api.auth.criarApiKey({ name: nome, scopes: ['read', 'write'] });
-    setNovaKey(resultado.key);
-    setKeys([...keys, resultado]);
-    setMostrarForm(false);
-    setNome('');
+    setErro('');
+
+    try {
+      const resultado = await api.auth.criarApiKey({ name: nome, scopes: ['read', 'write'] });
+      setNovaKey(resultado.key);
+      setKeys((keysAtuais) => [...keysAtuais, resultado]);
+      setMostrarForm(false);
+      setNome('');
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : 'Não foi possível criar a API key.');
+    }
   }
 
   async function deletarKey(id: string) {
-    await api.auth.deletarApiKey(id);
-    setKeys(keys.filter((k) => k.id !== id));
+    if (removendoKeyId) return;
+
+    setErro('');
+    setRemovendoKeyId(id);
+
+    try {
+      await api.auth.deletarApiKey(id);
+      setKeys((keysAtuais) => keysAtuais.filter((keyAtual) => keyAtual.id !== id));
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : 'Não foi possível excluir a API key.');
+    } finally {
+      setRemovendoKeyId(null);
+    }
   }
 
   function copiarKey() {
@@ -66,6 +86,12 @@ export function ApiKeysPage() {
           Nova Key
         </button>
       </div>
+
+      {erro && (
+        <div className="mb-6 rounded-xl border border-red-900 bg-red-950/60 px-4 py-3 text-sm text-red-200">
+          {erro}
+        </div>
+      )}
 
       {novaKey && (
         <div className="bg-green-950 border border-green-800 rounded-xl p-4 mb-6">
@@ -112,6 +138,10 @@ export function ApiKeysPage() {
       )}
 
       <div className="space-y-2">
+        {carregando && (
+          <p className="text-zinc-500 text-sm text-center py-8">Carregando API keys...</p>
+        )}
+
         {keys.map((key) => (
           <div key={key.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -128,15 +158,18 @@ export function ApiKeysPage() {
                   : 'Nunca usado'}
               </span>
               <button
+                type="button"
                 onClick={() => deletarKey(key.id)}
-                className="text-zinc-600 hover:text-red-400 transition-colors"
+                disabled={removendoKeyId === key.id}
+                aria-label={`Excluir API key ${key.name}`}
+                className="text-zinc-600 hover:text-red-400 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Trash2 size={16} />
               </button>
             </div>
           </div>
         ))}
-        {keys.length === 0 && (
+        {!carregando && keys.length === 0 && (
           <p className="text-zinc-500 text-sm text-center py-8">Nenhuma API key criada.</p>
         )}
       </div>
@@ -150,4 +183,18 @@ export function ApiKeysPage() {
       </div>
     </div>
   );
+
+  async function carregarKeys() {
+    setCarregando(true);
+    setErro('');
+
+    try {
+      const keysCarregadas = await api.auth.listarApiKeys();
+      setKeys(keysCarregadas);
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : 'Não foi possível carregar as API keys.');
+    } finally {
+      setCarregando(false);
+    }
+  }
 }

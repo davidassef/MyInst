@@ -210,6 +210,35 @@ describe('MyInst API', () => {
       expect(ids).toContain(apiKeyId);
     });
 
+    it('DELETE /auth/api-keys/:id remove chave do próprio usuário', async () => {
+      const criarRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/api-keys',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { name: 'Key Para Excluir', scopes: ['read', 'write'] },
+      });
+
+      expect(criarRes.statusCode).toBe(201);
+      const keyIdParaExcluir = criarRes.json().data.id as string;
+
+      const deleteRes = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/auth/api-keys/${keyIdParaExcluir}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(deleteRes.statusCode).toBe(204);
+
+      const lista = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/api-keys',
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      const ids = lista.json().data.map((key: { id: string }) => key.id);
+      expect(ids).not.toContain(keyIdParaExcluir);
+    });
+
     it('autenticação via API key funciona', async () => {
       const res = await app.inject({
         method: 'GET',
