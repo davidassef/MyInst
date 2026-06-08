@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FolderOpen, Pencil, Plus, ShieldCheck } from 'lucide-react';
-import { ContextMenu, type ContextMenuAction, deveLiberarMenuNativo, habilitarMenuNativoUmaVez } from '@/components/ContextMenu';
+import { useContextMenuRegistry } from '@/components/ContextMenuRegistry';
 import { api } from '@/lib/api';
 import { gerarSlug } from '@/lib/slug';
 
@@ -28,7 +28,6 @@ interface Formulario {
 }
 
 const FORM_INICIAL = { name: '', slug: '', description: '' };
-const MENU_INICIAL = { open: false, x: 0, y: 0, actions: [] as ContextMenuAction[] };
 
 export function WorkspacePage() {
   const navigate = useNavigate();
@@ -46,7 +45,6 @@ export function WorkspacePage() {
   const [slugProjetoManual, setSlugProjetoManual] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState('');
-  const [menu, setMenu] = useState(MENU_INICIAL);
 
   useEffect(() => {
     if (!workspaceSlug) return;
@@ -54,6 +52,30 @@ export function WorkspacePage() {
     api.workspaces.obter(workspaceSlug).then(setWorkspace);
     api.projetos.listar(workspaceSlug).then(setProjetos);
   }, [workspaceSlug]);
+
+  useContextMenuRegistry(
+    {
+      getPageActions: () => [
+        {
+          label: 'Criar projeto',
+          onSelect: () => setMostrarForm(true),
+        },
+      ],
+      getCardActions: ({ kind, id }) => {
+        if (kind !== 'project-card') return [];
+        const projeto = projetos.find((item) => item.id === id);
+        if (!projeto) return [];
+
+        return [
+          {
+            label: 'Editar',
+            onSelect: () => iniciarEdicaoProjeto(projeto),
+          },
+        ];
+      },
+    },
+    [projetos],
+  );
 
   async function criarProjeto(e: React.FormEvent) {
     e.preventDefault();
@@ -196,47 +218,8 @@ export function WorkspacePage() {
     setErroForm('');
   }
 
-  function abrirMenu(event: React.MouseEvent, actions: ContextMenuAction[]) {
-    event.preventDefault();
-    event.stopPropagation();
-    setMenu({
-      open: true,
-      x: event.clientX,
-      y: event.clientY,
-      actions,
-    });
-  }
-
   return (
-    <div
-      className="min-h-[calc(100vh-10rem)] w-full space-y-8"
-      onContextMenuCapture={(event) => {
-        if (deveLiberarMenuNativo()) {
-          return;
-        }
-
-        const alvo = event.target as HTMLElement;
-        if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {
-          return;
-        }
-
-        const actions: ContextMenuAction[] = [
-          {
-            label: 'Criar projeto',
-            onSelect: () => setMostrarForm(true),
-          },
-        ];
-
-        if (workspaceSlug) {
-          actions.push({
-            label: 'Propriedades',
-            onSelect: () => navigate(`/workspaces/${workspaceSlug}`),
-          });
-        }
-
-        abrirMenu(event, actions);
-      }}
-    >
+    <div className="space-y-8">
       <section className="grid gap-4 xl:grid-cols-[1.35fr_0.75fr]">
         <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-6">
           <div className="flex items-start justify-between gap-4">
@@ -369,26 +352,11 @@ export function WorkspacePage() {
                 />
               ) : (
                 <div
-                  data-card-menu
+                  data-context-menu="project-card"
+                  data-context-id={projeto.id}
                   role="link"
                   tabIndex={0}
                   onClick={() => navigate(rotaProjeto)}
-                  onContextMenuCapture={(event) => {
-                    if (deveLiberarMenuNativo()) {
-                      return;
-                    }
-
-                    abrirMenu(event, [
-                      {
-                        label: 'Propriedades',
-                        onSelect: () => habilitarMenuNativoUmaVez(),
-                      },
-                      {
-                        label: 'Editar',
-                        onSelect: () => iniciarEdicaoProjeto(projeto),
-                      },
-                    ]);
-                  }}
                   onKeyDown={(event) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return;
                     event.preventDefault();
@@ -439,14 +407,6 @@ export function WorkspacePage() {
           );
         })}
       </section>
-
-      <ContextMenu
-        open={menu.open}
-        x={menu.x}
-        y={menu.y}
-        actions={menu.actions}
-        onClose={() => setMenu(MENU_INICIAL)}
-      />
     </div>
   );
 }

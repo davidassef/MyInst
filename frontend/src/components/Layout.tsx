@@ -1,5 +1,8 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { Boxes, ChevronRight, Home, KeyRound, LogOut, ShieldCheck, Waypoints } from 'lucide-react';
+import { ContextMenu, type ContextMenuAction } from '@/components/ContextMenu';
+import { ContextMenuRegistryProvider, type ContextMenuDefinition } from '@/components/ContextMenuRegistry';
 import { limparToken } from '@/lib/api';
 import { useBrand } from '@/components/BrandProvider';
 
@@ -7,10 +10,40 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const brand = useBrand();
+  const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; actions: ContextMenuAction[] }>({
+    open: false,
+    x: 0,
+    y: 0,
+    actions: [],
+  });
+  const [contextMenuDefinition, setContextMenuDefinition] = useState<ContextMenuDefinition>({});
 
   function handleLogout() {
     limparToken();
     navigate('/login');
+  }
+
+  function abrirMenu(event: React.MouseEvent, actions: ContextMenuAction[]) {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({
+      open: true,
+      x: event.clientX,
+      y: event.clientY,
+      actions,
+    });
+  }
+
+  function resolverAcoes(target: HTMLElement) {
+    const card = target.closest<HTMLElement>('[data-context-menu]');
+    if (card) {
+      const kind = card.dataset.contextMenu;
+      const id = card.dataset.contextId;
+      if (!kind || !id || !contextMenuDefinition.getCardActions) return [];
+      return contextMenuDefinition.getCardActions({ kind, id });
+    }
+
+    return contextMenuDefinition.getPageActions?.() ?? [];
   }
 
   return (
@@ -100,14 +133,42 @@ export function Layout() {
         </aside>
 
         <main className="flex-1">
-          <div className="vault-panel relative min-h-[calc(100vh-24px)] overflow-hidden rounded-[32px] border border-white/8 p-4 md:p-8">
+          <div
+            className="vault-panel relative min-h-[calc(100vh-24px)] overflow-hidden rounded-[32px] border border-white/8 p-4 md:p-8"
+            onContextMenuCapture={(event) => {
+              const target = event.target as HTMLElement;
+
+              if (target.closest('input, textarea, select')) {
+                return;
+              }
+
+              const actions = resolverAcoes(target);
+              if (actions.length === 0) {
+                event.preventDefault();
+                setMenu((current) => ({ ...current, open: false }));
+                return;
+              }
+
+              abrirMenu(event, actions);
+            }}
+          >
             <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[linear-gradient(180deg,_rgba(95,198,213,0.1),_transparent)]" />
-            <div className="relative">
-              <Outlet />
-            </div>
+            <ContextMenuRegistryProvider setDefinition={setContextMenuDefinition}>
+              <div className="relative min-h-[calc(100vh-10rem)] w-full">
+                <Outlet />
+              </div>
+            </ContextMenuRegistryProvider>
           </div>
         </main>
       </div>
+
+      <ContextMenu
+        open={menu.open}
+        x={menu.x}
+        y={menu.y}
+        actions={menu.actions}
+        onClose={() => setMenu((current) => ({ ...current, open: false }))}
+      />
     </div>
   );
 }

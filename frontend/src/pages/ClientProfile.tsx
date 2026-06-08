@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Pencil, Plus, Save, Search, Trash2, Waypoints } from 'lucide-react';
-import { ContextMenu, type ContextMenuAction, deveLiberarMenuNativo, habilitarMenuNativoUmaVez } from '@/components/ContextMenu';
-import { ReplicationModal } from '@/components/ReplicationModal';
+import { useContextMenuRegistry } from '@/components/ContextMenuRegistry';
 import { api } from '@/lib/api';
-import { possuiReplicacaoCompativel } from '@/lib/clientProfileReplication';
 import { gerarSlug } from '@/lib/slug';
 
 const TIPOS_LABEL: Record<string, string> = {
@@ -37,20 +35,6 @@ interface ItemGlobal {
   updatedAt: string;
 }
 
-interface MenuState {
-  open: boolean;
-  x: number;
-  y: number;
-  actions: ContextMenuAction[];
-}
-
-const MENU_INICIAL: MenuState = {
-  open: false,
-  x: 0,
-  y: 0,
-  actions: [],
-};
-
 export function ClientProfilePage() {
   const { clientId = '' } = useParams<{ clientId: string }>();
   const [profile, setProfile] = useState<ClientProfile | null>(null);
@@ -70,8 +54,6 @@ export function ClientProfilePage() {
   const [tituloEditado, setTituloEditado] = useState('');
   const [bodyEditado, setBodyEditado] = useState('');
   const [tagsEditadas, setTagsEditadas] = useState('');
-  const [menu, setMenu] = useState<MenuState>(MENU_INICIAL);
-  const [modalReplicacaoAberto, setModalReplicacaoAberto] = useState(false);
 
   useEffect(() => {
     if (!clientId) return;
@@ -90,6 +72,22 @@ export function ClientProfilePage() {
     if (selecionado || items.length === 0) return;
     setSelecionado(items[0]);
   }, [items, selecionado]);
+
+  useContextMenuRegistry(
+    {
+      getPageActions: () => [
+        {
+          label: 'Novo item',
+          onSelect: () => setMostrarForm(true),
+        },
+      ],
+      getCardActions: ({ kind }) => {
+        if (kind !== 'client-profile-item-card') return [];
+        return [];
+      },
+    },
+    [clientId],
+  );
 
   const itensFiltrados = useMemo(() => {
     return items.filter((item) => {
@@ -152,47 +150,8 @@ export function ClientProfilePage() {
     }
   }
 
-  function abrirMenu(event: React.MouseEvent, actions: ContextMenuAction[]) {
-    event.preventDefault();
-    event.stopPropagation();
-    setMenu({
-      open: true,
-      x: event.clientX,
-      y: event.clientY,
-      actions,
-    });
-  }
-
   return (
-    <div
-      className="min-h-[calc(100vh-10rem)] w-full space-y-6"
-      onContextMenuCapture={(event) => {
-        if (deveLiberarMenuNativo()) {
-          return;
-        }
-
-        const alvo = event.target as HTMLElement;
-        if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {
-          return;
-        }
-
-        const actions: ContextMenuAction[] = [
-          {
-            label: 'Novo item',
-            onSelect: () => setMostrarForm(true),
-          },
-        ];
-
-        if (clientId && possuiReplicacaoCompativel(clientId)) {
-          actions.push({
-            label: 'Replicar',
-            onSelect: () => setModalReplicacaoAberto(true),
-          });
-        }
-
-        abrirMenu(event, actions);
-      }}
-    >
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link to="/client-profiles" className="rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-slate-400 transition hover:border-white/14 hover:text-white">
           <ArrowLeft size={18} />
@@ -283,20 +242,9 @@ export function ClientProfilePage() {
             {itensFiltrados.map((item) => (
               <div
                 key={item.id}
-                data-card-menu
+                data-context-menu="client-profile-item-card"
+                data-context-id={item.id}
                 onClick={() => setSelecionado(item)}
-                onContextMenuCapture={(event) => {
-                  if (deveLiberarMenuNativo()) {
-                    return;
-                  }
-
-                  abrirMenu(event, [
-                  {
-                    label: 'Propriedades',
-                    onSelect: () => habilitarMenuNativoUmaVez(),
-                  },
-                  ]);
-                }}
                 className={`cursor-pointer rounded-[22px] border p-4 transition ${
                   selecionado?.id === item.id
                     ? 'border-cyan-300/25 bg-cyan-300/10'
@@ -359,20 +307,6 @@ export function ClientProfilePage() {
           )}
         </section>
       </div>
-
-      <ContextMenu
-        open={menu.open}
-        x={menu.x}
-        y={menu.y}
-        actions={menu.actions}
-        onClose={() => setMenu(MENU_INICIAL)}
-      />
-
-      <ReplicationModal
-        open={modalReplicacaoAberto}
-        sourceClient={clientId}
-        onClose={() => setModalReplicacaoAberto(false)}
-      />
     </div>
   );
 }
