@@ -165,7 +165,7 @@ export function ClientProfilePage() {
 
   return (
     <div
-      className="space-y-6"
+      className="min-h-[calc(100vh-10rem)] space-y-6"
       onContextMenu={(event) => {
         const alvo = event.target as HTMLElement;
         if (alvo.closest('[data-card-menu]') || alvo.closest('button, a, input, textarea, select, form')) {

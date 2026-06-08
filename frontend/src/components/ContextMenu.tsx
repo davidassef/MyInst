@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface ContextMenuAction {
   label: string;
@@ -16,6 +17,7 @@ interface ContextMenuProps {
 
 export function ContextMenu({ open, x, y, actions, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState({ x, y });
 
   useEffect(() => {
     if (!open) return;
@@ -45,13 +47,27 @@ export function ContextMenu({ open, x, y, actions, onClose }: ContextMenuProps) 
     };
   }, [open, onClose]);
 
+  useLayoutEffect(() => {
+    if (!open || !menuRef.current) return;
+
+    const viewportPadding = 12;
+    const rect = menuRef.current.getBoundingClientRect();
+    const limiteX = window.innerWidth - rect.width - viewportPadding;
+    const limiteY = window.innerHeight - rect.height - viewportPadding;
+
+    setPosition({
+      x: Math.max(viewportPadding, Math.min(x, limiteX)),
+      y: Math.max(viewportPadding, Math.min(y, limiteY)),
+    });
+  }, [open, x, y, actions]);
+
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       className="fixed z-50 min-w-[220px] overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/96 p-2 shadow-[0_24px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl"
-      style={{ left: x, top: y }}
+      style={{ left: position.x, top: position.y }}
       role="menu"
     >
       {actions.map((action) => (
@@ -70,6 +86,7 @@ export function ContextMenu({ open, x, y, actions, onClose }: ContextMenuProps) 
           {action.label}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
