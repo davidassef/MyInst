@@ -12,6 +12,8 @@ describe('Pull preview', () => {
 
     expect(texto).toContain('[DRY RUN] 2 item(ns) seriam aplicados');
     expect(texto).toContain('.claude/MYINST.md');
+    expect(texto).toContain('Regras de segurança');
+    expect(texto).toContain('placeholders');
     expect(texto).toContain('"slug": "myinst"');
     expect(texto).toContain('"slug": "tdd"');
   });

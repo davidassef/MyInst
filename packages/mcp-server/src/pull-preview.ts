@@ -22,5 +22,7 @@ export function montarPreviewPull(items: PreviewItem[]): string {
     })),
   ];
 
-  return `[DRY RUN] ${preview.length} item(ns) seriam aplicados, incluindo o guia operacional .claude/MYINST.md:\n${JSON.stringify(preview, null, 2)}`;
+  return `[DRY RUN] ${preview.length} item(ns) seriam aplicados, incluindo o guia operacional .claude/MYINST.md.\n`
+    + 'Regras de segurança devem ser respeitadas antes do push (sem segredos em texto plano + placeholders).\n'
+    + `Resumo:\n${JSON.stringify(preview, null, 2)}`;
 }

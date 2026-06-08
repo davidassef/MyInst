@@ -100,8 +100,12 @@ export function LoginPage() {
 
               <BlocoCodigo
                 titulo="2. Configure no cliente MCP"
-                codigo={`{\n  "mcpServers": {\n    "myinst": {\n      "command": "myinst-mcp",\n      "env": {\n        "MYINST_API_KEY": "myinst_sua_key_aqui",\n        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"\n      }\n    }\n  }\n}`}
+                codigo={`{\n  "mcpServers": {\n    "myinst": {\n      "command": "myinst-mcp",\n      "env": {\n        "MYINST_API_KEY": "{{MYINST_API_KEY}}",\n        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"\n      }\n    }\n  }\n}`}
               />
+
+              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3 text-xs leading-6 text-cyan-100">
+                Use placeholders em exemplos e exemplos de documento. Nunca cole chaves ou segredos reais no arquivo de onboarding.
+              </div>
             </div>
 
             <p className="mt-4 text-sm leading-7 text-slate-400">

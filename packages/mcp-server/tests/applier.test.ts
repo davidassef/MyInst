@@ -162,6 +162,8 @@ describe('Applier', () => {
     const claude = await readFile(join(dir, '.claude', 'CLAUDE.md'), 'utf-8');
     expect(guia).toContain('myinst-managed: true');
     expect(guia).toContain('myinst_pull -> trabalho local -> myinst_push');
+    expect(guia).toContain('## Regras de segurança (obrigatórias)');
+    expect(guia).toContain('Checklist obrigatório');
     expect(claude).toBe('Instrucoes do projeto.');
 
     await rm(dir, { recursive: true, force: true });
@@ -178,6 +180,8 @@ describe('Applier', () => {
     const guia = await readFile(join(dir, '.claude', 'MYINST.md'), 'utf-8');
     expect(guia).toContain('## Modelo de escopo');
     expect(guia).toContain('## Fluxo oficial');
+    expect(guia).toContain('## Regras de segurança (obrigatórias)');
+    expect(guia).toContain('Checklist obrigatório');
     expect(guia).toContain('Client Profiles');
     expect(guia).not.toContain('conteudo antigo');
 

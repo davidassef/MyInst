@@ -48,6 +48,9 @@ Depois configure o cliente com:
 - `MYINST_API_KEY`: sua API key da conta
 - `MYINST_SERVER`: `https://api-myinst.lotoscore.com.br`
 
+Nunca cole chaves reais na documentação ou config de exemplo.  
+Use placeholders e aplique valores reais apenas no ambiente local, em um arquivo de configuração privado.
+
 Exemplo:
 
 ```json
@@ -56,7 +59,7 @@ Exemplo:
     "myinst": {
       "command": "myinst-mcp",
       "env": {
-        "MYINST_API_KEY": "myinst_sua_key_aqui",
+        "MYINST_API_KEY": "{{MYINST_API_KEY}}",
         "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
       }
     }
@@ -86,6 +89,12 @@ Fluxo operacional recomendado:
 2. O agente trabalha sobre arquivos reais no projeto.
 3. `myinst_push` sincroniza mudanças de volta.
 4. `myinst_search` fica como ferramenta auxiliar de descoberta.
+
+Pré-requisito antes de `myinst_push`:
+
+- conteúdo revisado manualmente
+- sem segredos em texto plano
+- placeholders sensíveis preenchidos localmente
 
 ## Componentes do produto
 
@@ -187,7 +196,7 @@ Exemplo de configuração:
     "myinst": {
       "command": "myinst-mcp",
       "env": {
-        "MYINST_API_KEY": "myinst_sua_key_aqui",
+        "MYINST_API_KEY": "{{MYINST_API_KEY}}",
         "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
       }
     }

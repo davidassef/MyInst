@@ -31,6 +31,23 @@ O fluxo recomendado continua sendo:
 myinst_pull -> trabalho local -> myinst_push
 ```
 
+## Segurança operacional
+
+Antes de executar `myinst_push`, o agente deve respeitar:
+
+- nunca incluir segredos em texto plano (`token`, `api key`, `secret`, `password`, `.env`, `oauth`, `cookie`);
+- substituir valores sensíveis por placeholders `{{...}}`;
+- se um valor for obrigatório para operação local, manter estrutura do arquivo e pedir preenchimento manual no ambiente do usuário;
+- usar `dryRun` para validar ações antes de gravar no vault;
+- manter `.claude/MYINST.md` como fonte de operação e não como banco de segredos.
+
+Checklist obrigatória de pré-push:
+
+- revisar o conteúdo local no projeto selecionado;
+- confirmar `sem segredos reais` em texto plano;
+- garantir `placeholders` nos campos sensíveis;
+- só então executar `myinst_push`.
+
 `myinst_pull` cria ou atualiza `.claude/MYINST.md` para instruir o agente sobre:
 
 - diferenca entre `scope=project` e `scope=global`

@@ -48,6 +48,24 @@ Use o MyInst como fluxo local-first para materializar, editar e sincronizar cont
 - Quando nao estiver no contexto default, informe workspace e project explicitamente nas tools de projeto.
 - Nao trate configuracoes globais de cliente como projeto. O destino correto e Client Profiles.
 
+## Regras de segurança (obrigatórias)
+- O agente nao deve inserir ou divulgar informacoes sensiveis.
+- Nunca inclua 'senha', 'token', 'api key', 'secret', 'oauth', credenciais, cookies ou conteúdo de '.env' em texto plano.
+- Nao passe segredos reais no 'myinst_push'.
+- Se um valor sensivel for necessario no arquivo original, substitua por placeholder generico, por exemplo:
+  - '{{API_KEY}}'
+  - '{{DATABASE_URL}}'
+  - '{{SECRET_KEY}}'
+  - '{{TOKEN_ACESSO}}'
+- Se houver erro de parse, bloqueio ou limite, interrompa e reporte o plano de acao sem expor secret.
+- Para itens com configuracao persistente e seguranca, registre estrutura e metadados e indique que o valor deve ser aplicado localmente.
+- Se qualquer item contiver segredo real detectado, suspenda o push e execute revisão manual antes de sincronizar.
+- Checklist obrigatório antes de 'myinst_push' (no mesmo ciclo):
+  - conteudo revisado
+  - sem segredos reais em texto plano
+  - placeholders aplicados onde necessário
+- Não substitua placeholders por valores reais no fluxo automático.
+
 ## Exemplos operacionais
 - Projeto atual: myinst_pull com scope=project, editar arquivos locais, depois myinst_push com scope=project.
 - Global do Codex: myinst_pull com scope=global e clients=["codex"], editar o conteudo materializado, depois myinst_push com scope=global e clients=["codex"].

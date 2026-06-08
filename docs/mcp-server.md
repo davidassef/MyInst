@@ -35,7 +35,7 @@ Arquivo: `C:\Users\seu-usuario\.codex\config.toml`
 command = "myinst-mcp"
 
 [mcp_servers.myinst.env]
-MYINST_API_KEY = "myinst_sua_key_aqui"
+MYINST_API_KEY = "{{MYINST_API_KEY}}"
 MYINST_SERVER = "https://api-myinst.lotoscore.com.br"
 ```
 
@@ -47,7 +47,7 @@ MYINST_SERVER = "https://api-myinst.lotoscore.com.br"
     "myinst": {
       "command": "myinst-mcp",
       "env": {
-        "MYINST_API_KEY": "myinst_sua_key_aqui",
+        "MYINST_API_KEY": "{{MYINST_API_KEY}}",
         "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
       }
     }
@@ -78,6 +78,24 @@ O fluxo padrão é local-first:
 `myinst_search` continua disponível, mas como descoberta pontual.
 
 Todo pull canônico cria ou atualiza `.claude/MYINST.md` para deixar esse contrato explícito para o agente.
+
+## Segurança operacional para agentes
+
+O agente deve tratar o conteúdo como sensível:
+
+- nunca sincronizar segredos reais;
+- nunca enviar `token`, `api key`, `senha`, `secret`, `oauth`, `.env` ou credenciais.
+- substituir valores sensíveis por placeholders genéricos, por exemplo `{{API_KEY}}`, `{{DATABASE_URL}}`, `{{SECRET_KEY}}`.
+- se o arquivo original exigir segredo operacional, manter somente metadados estruturais e pedir ao usuário aplicar valor localmente.
+- usar `dryRun` antes de `myinst_push` para validar impacto.
+- quando houver erro de bloqueio, reportar somente contexto técnico e plano de correção, sem divulgar dados.
+
+Checklist de segurança pré-push:
+
+- validar conteúdo revisado no diretório alvo;
+- confirmar ausência de segredos reais no texto;
+- garantir placeholders `{{...}}` para chaves e URLs sensíveis;
+- só executar `myinst_push` após revisão.
 
 ## Descoberta multi-cliente
 
