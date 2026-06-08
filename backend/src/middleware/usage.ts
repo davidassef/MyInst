@@ -3,6 +3,10 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../db/index.js';
 import { users, plans, contentItems, projects, apiKeys } from '../db/schema.js';
 
+function limitesDeUsoEstaoAtivos() {
+  return process.env.MYINST_ENABLE_USAGE_LIMITS === 'true';
+}
+
 async function obterLimitesPlano(userId: string) {
   const [usuario] = await db
     .select({ planId: users.planId })
@@ -22,6 +26,8 @@ async function obterLimitesPlano(userId: string) {
 }
 
 export async function verificarLimiteConteudo(request: FastifyRequest, reply: FastifyReply) {
+  if (!limitesDeUsoEstaoAtivos()) return;
+
   const plano = await obterLimitesPlano(request.user.id);
   if (!plano) return;
 
@@ -42,6 +48,8 @@ export async function verificarLimiteConteudo(request: FastifyRequest, reply: Fa
 }
 
 export async function verificarLimiteProjetos(request: FastifyRequest, reply: FastifyReply) {
+  if (!limitesDeUsoEstaoAtivos()) return;
+
   const plano = await obterLimitesPlano(request.user.id);
   if (!plano) return;
 
@@ -62,6 +70,8 @@ export async function verificarLimiteProjetos(request: FastifyRequest, reply: Fa
 }
 
 export async function verificarLimiteApiKeys(request: FastifyRequest, reply: FastifyReply) {
+  if (!limitesDeUsoEstaoAtivos()) return;
+
   const plano = await obterLimitesPlano(request.user.id);
   if (!plano) return;
 

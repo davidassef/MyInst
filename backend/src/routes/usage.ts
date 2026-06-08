@@ -4,20 +4,27 @@ import { db } from '../db/index.js';
 import { users, plans, contentItems, projects, apiKeys } from '../db/schema.js';
 import { autenticar } from '../middleware/auth.js';
 
+function limitesDeUsoEstaoAtivos() {
+  return process.env.MYINST_ENABLE_USAGE_LIMITS === 'true';
+}
+
 export async function usageRoutes(app: FastifyInstance) {
   app.addHook('preHandler', autenticar);
 
   app.get('/', async (request, reply) => {
+    const limitesAtivos = limitesDeUsoEstaoAtivos();
     const [usuario] = await db
       .select({ planId: users.planId })
       .from(users)
       .where(eq(users.id, request.user.id))
       .limit(1);
 
-    let nomePlano = 'free';
-    let limites = { maxItems: 50, maxProjects: 3, maxApiKeys: 2 };
+    let nomePlano = limitesAtivos ? 'free' : 'open';
+    let limites = limitesAtivos
+      ? { maxItems: 50, maxProjects: 3, maxApiKeys: 2 }
+      : { maxItems: null, maxProjects: null, maxApiKeys: null };
 
-    if (usuario?.planId) {
+    if (limitesAtivos && usuario?.planId) {
       const [plano] = await db
         .select()
         .from(plans)
@@ -52,6 +59,7 @@ export async function usageRoutes(app: FastifyInstance) {
     return {
       data: {
         plan: nomePlano,
+        limitsEnabled: limitesAtivos,
         usage: {
           items: { current: totalItens.total, max: limites.maxItems },
           projects: { current: totalProjetos.total, max: limites.maxProjects },

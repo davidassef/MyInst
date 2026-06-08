@@ -50,6 +50,23 @@ describe('MyInst API', () => {
       expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
     });
 
+    it('CORS permite preflight de DELETE autenticado', async () => {
+      const res = await app.inject({
+        method: 'OPTIONS',
+        url: '/api/v1/auth/api-keys/test-id',
+        headers: {
+          origin: 'http://localhost:5173',
+          'access-control-request-method': 'DELETE',
+          'access-control-request-headers': 'authorization,content-type',
+        },
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+      expect(res.headers['access-control-allow-methods']).toContain('DELETE');
+      expect(res.headers['access-control-allow-headers']).toContain('Authorization');
+    });
+
     it('CORS rejeita origem não configurada', async () => {
       const res = await app.inject({
         method: 'OPTIONS',
@@ -1200,16 +1217,20 @@ describe('MyInst API', () => {
       });
       expect(res.statusCode).toBe(200);
       const body = res.json();
-      expect(body.data.plan).toBeDefined();
+      expect(body.data.plan).toBe('open');
+      expect(body.data.limitsEnabled).toBe(false);
       expect(body.data.usage.items).toHaveProperty('current');
       expect(body.data.usage.items).toHaveProperty('max');
+      expect(body.data.usage.items.max).toBeNull();
       expect(body.data.usage.projects).toHaveProperty('current');
       expect(body.data.usage.projects).toHaveProperty('max');
+      expect(body.data.usage.projects.max).toBeNull();
       expect(body.data.usage.apiKeys).toHaveProperty('current');
       expect(body.data.usage.apiKeys).toHaveProperty('max');
+      expect(body.data.usage.apiKeys.max).toBeNull();
     });
 
-    it('criar conteúdo além do limite retorna 403', async () => {
+    it('criar conteúdo não é bloqueado mesmo com plano restritivo quando limites estão desligados', async () => {
       const [planoRestrito] = await db.insert(plans).values({
         name: `test-limit-${Date.now()}`,
         maxItems: 0,
@@ -1238,8 +1259,7 @@ describe('MyInst API', () => {
           isActive: true,
         },
       });
-      expect(res.statusCode).toBe(403);
-      expect(res.json().error.code).toBe('LIMIT_EXCEEDED');
+      expect(res.statusCode).toBe(201);
 
       const [planoFree] = await db
         .select({ id: plans.id })

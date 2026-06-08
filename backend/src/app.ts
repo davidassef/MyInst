@@ -35,6 +35,8 @@ export async function criarApp(configuracao: ConfiguracaoAmbiente = carregarAmbi
 
   await app.register(helmet);
   await app.register(cors, {
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     origin: (origin, callback) => {
       if (!origin) {
         callback(null, true);
