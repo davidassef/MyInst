@@ -13,15 +13,22 @@ export function LoginPage() {
   const [displayName, setDisplayName] = useState('');
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
+  const [returnUrl, setReturnUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenOAuth = params.get('token');
     const erroOAuth = params.get('oauth_error');
+    const retorno = params.get('return_url');
+
+    if (retorno) {
+      setReturnUrl(retorno);
+    }
 
     if (tokenOAuth) {
       salvarToken(tokenOAuth);
-      navigate('/', { replace: true });
+      const destino = returnUrl || '/';
+      navigate(destino, { replace: true });
       return;
     }
 
@@ -29,7 +36,7 @@ export function LoginPage() {
       setErro('Não foi possível concluir o login OAuth.');
       window.history.replaceState(null, '', '/login');
     }
-  }, [navigate]);
+  }, [navigate, returnUrl]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,7 +52,7 @@ export function LoginPage() {
         salvarToken(resultado.token);
       }
 
-      navigate('/');
+      navigate(returnUrl || '/', { replace: true });
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao autenticar');
     } finally {

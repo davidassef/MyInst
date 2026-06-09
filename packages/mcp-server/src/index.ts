@@ -8,6 +8,7 @@ import type { ConflictStrategy } from './applier/index.js';
 import { detectarNomeRepositorio } from './importer/index.js';
 import { montarPreviewPull } from './pull-preview.js';
 import { listarMatrizCompatibilidadeReplicacao, planejarReplicacaoClientProfile } from './client-profile-replication.js';
+import { obterCredenciaisAtivas, iniciarFluxoAutenticacao } from './auth.js';
 import {
   exportarParaClientesNativos,
   importarTargetsDetectados,
@@ -23,8 +24,6 @@ import {
 } from './sync-targets/index.js';
 
 const MYINST_VERSION = '0.1.0-beta.1';
-const MYINST_API_KEY = process.env.MYINST_API_KEY;
-const MYINST_SERVER = process.env.MYINST_SERVER || 'http://localhost:3000';
 const SCOPES_SYNC = ['project', 'global', 'all'] as const;
 const FORMATOS_PULL = ['myinst', 'native'] as const;
 const TIPOS_CANONICOS = ['skill', 'instruction', 'mcp_config', 'agent', 'command', 'hook', 'memory', 'output_style', 'setting', 'snippet'] as const;
@@ -34,11 +33,11 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
     'myinst-mcp',
     '',
     'Uso:',
-    '  MYINST_API_KEY=<token> MYINST_SERVER=<url> myinst-mcp',
+    '  myinst-mcp',
     '',
-    'Variaveis de ambiente:',
-    '  MYINST_API_KEY  Chave de API do MyInst',
-    '  MYINST_SERVER   URL base da API MyInst (padrao: http://localhost:3000)',
+    'Variaveis de ambiente (opcionais):',
+    '  MYINST_API_KEY  Chave de API do MyInst (se nao fornecida, abre browser para autenticacao)',
+    '  MYINST_SERVER   URL base da API MyInst (padrao: https://api-myinst.lotoscore.com.br)',
     '  MYINST_MODEL    Nome do modelo para resolucao automatica de perfil',
   ].join('\n'));
   process.exit(0);
@@ -49,24 +48,47 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
   process.exit(0);
 }
 
-if (!MYINST_API_KEY) {
-  console.error('[ERROR] MYINST_API_KEY não configurada');
-  process.exit(1);
+async function inicializarClient(): Promise<MyInstClient> {
+  const apiKeyEnv = process.env.MYINST_API_KEY;
+  const serverUrlEnv = process.env.MYINST_SERVER;
+
+  if (apiKeyEnv) {
+    const serverUrl = serverUrlEnv || 'http://localhost:3000';
+    return new MyInstClient(serverUrl, apiKeyEnv);
+  }
+
+  const credenciais = await obterCredenciaisAtivas(serverUrlEnv);
+
+  if (credenciais) {
+    return new MyInstClient(credenciais.serverUrl, credenciais.token);
+  }
+
+  console.error('[INFO] Nenhuma credencial encontrada. Iniciando autenticação via browser...');
+
+  const resultado = await iniciarFluxoAutenticacao(serverUrlEnv);
+  return new MyInstClient(resultado.serverUrl, resultado.token);
 }
 
-const client = new MyInstClient(MYINST_SERVER, MYINST_API_KEY);
+let client: MyInstClient;
 
 const server = new McpServer({
   name: 'myinst',
   version: MYINST_VERSION,
 });
 
+async function getClient(): Promise<MyInstClient> {
+  if (!client) {
+    client = await inicializarClient();
+  }
+  return client;
+}
+
 server.tool(
   'myinst_list_workspaces',
   'Lista todos os workspaces do seu vault MyInst',
   {},
   async () => {
-    const workspaces = await client.listarWorkspaces();
+    const workspaces = await (await getClient()).listarWorkspaces();
     return {
       content: [{ type: 'text', text: JSON.stringify(workspaces, null, 2) }],
     };
@@ -80,7 +102,7 @@ server.tool(
     workspace: z.string().describe('Slug do workspace (omita para o workspace padrão)').optional(),
   },
   async ({ workspace }) => {
-    const projetos = await client.listarProjetosDoWorkspace(workspace);
+    const projetos = await (await getClient()).listarProjetosDoWorkspace(workspace);
     return {
       content: [{ type: 'text', text: JSON.stringify(projetos, null, 2) }],
     };
@@ -99,8 +121,8 @@ server.tool(
   },
   async ({ sourceClient, targetClient, dryRun, types, overwrite }) => {
     try {
-      const sourceItems = normalizarItensClientProfile(await client.listarItensClientProfile(sourceClient, { active: true }));
-      const targetItems = normalizarItensClientProfile(await client.listarItensClientProfile(targetClient, { active: true }));
+      const sourceItems = normalizarItensClientProfile(await (await getClient()).listarItensClientProfile(sourceClient, { active: true }));
+      const targetItems = normalizarItensClientProfile(await (await getClient()).listarItensClientProfile(targetClient, { active: true }));
       const plano = planejarReplicacaoClientProfile({
         sourceClient,
         targetClient,
@@ -134,7 +156,7 @@ server.tool(
         ].join('\n\n'));
       }
 
-      const resultado = await client.push({
+      const resultado = await (await getClient()).push({
         scope: 'global',
         clientId: targetClient,
         items: itensParaEnviar,
@@ -210,7 +232,7 @@ server.tool(
     let tagsFinais = tags || [];
 
     if (modelName) {
-      const perfil = await client.matchProfile(modelName, workspace);
+      const perfil = await (await getClient()).matchProfile(modelName, workspace);
       if (perfil) {
         const tagsSet = new Set([...tagsFinais, ...perfil.tags]);
         tagsFinais = [...tagsSet];
@@ -306,7 +328,7 @@ server.tool(
     clientId: z.string().describe('Client profile global específico para a busca').optional(),
   },
   async ({ workspace, project, query, type, scope, clientId }) => {
-    const filtrados = await client.buscarConteudo({ query, workspace, project, type, scope, clientId });
+    const filtrados = await (await getClient()).buscarConteudo({ query, workspace, project, type, scope, clientId });
 
     return respostaTexto(
       filtrados.length === 0
@@ -342,12 +364,12 @@ server.tool(
         return respostaTexto('clientId é obrigatório para myinst_status com scope=global');
       }
 
-      const statusGlobal = await client.statusGlobal(clientId, since);
+      const statusGlobal = await (await getClient()).statusGlobal(clientId, since);
       return respostaTexto(`${statusGlobal.changedCount} item(ns) globais alterado(s) em ${clientId} desde ${since || 'sempre'}:\n${JSON.stringify(statusGlobal.items, null, 2)}`);
     }
 
     const slug = project || 'default';
-    const status = await client.status(slug, since, workspace);
+    const status = await (await getClient()).status(slug, since, workspace);
 
     return respostaTexto(`${status.changedCount} item(ns) alterado(s) desde ${since || 'sempre'}:\n${JSON.stringify(status.items, null, 2)}`);
   },
@@ -398,7 +420,6 @@ server.tool(
 
     const projetoDestino = gruposEscopo.projectItems.length > 0
       ? await resolverProjetoDestinoSync({
-          client,
           workspace,
           project,
           sourceDir: dir,
@@ -432,14 +453,14 @@ server.tool(
     ].filter(Boolean);
 
     if (gruposEscopo.projectItems.length > 0 && projetoDestino) {
-      const resultadoProjeto = await client.push({ workspace, project: projetoDestino.slug, items: gruposEscopo.projectItems });
+      const resultadoProjeto = await (await getClient()).push({ workspace, project: projetoDestino.slug, items: gruposEscopo.projectItems });
       linhas.push(
         `  - Projeto ${projetoDestino.slug}: criados=${resultadoProjeto.created.length}, atualizados=${resultadoProjeto.updated.length}`,
       );
     }
 
     for (const [clientId, itensGlobais] of Object.entries(gruposEscopo.globalByClient)) {
-      const resultadoGlobal = await client.push({ scope: 'global', clientId, items: itensGlobais });
+      const resultadoGlobal = await (await getClient()).push({ scope: 'global', clientId, items: itensGlobais });
       linhas.push(
         `  - Global ${clientId}: criados=${resultadoGlobal.created.length}, atualizados=${resultadoGlobal.updated.length}`,
       );
@@ -492,7 +513,6 @@ server.tool(
     const gruposEscopo = separarItensPorEscopo(itensTratados.sincronizaveis);
     const projetoDestino = gruposEscopo.projectItems.length > 0
       ? await resolverProjetoDestinoSync({
-          client,
           workspace,
           project,
           sourceDir,
@@ -547,13 +567,13 @@ server.tool(
     }
 
     if (slug) {
-      const pastasExistentes = await client.listarPastas(slug, workspace);
-      const existentes = await client.pull({ workspace, project: slug });
+      const pastasExistentes = await (await getClient()).listarPastas(slug, workspace);
+      const existentes = await (await getClient()).pull({ workspace, project: slug });
       const slugsExistentes = new Set(existentes.items.map((item) => `${item.type}:${item.slug}`));
 
       for (const grupo of gruposProjeto) {
       if (!pastasExistentes.some((pasta) => pasta.slug === grupo.folderSlug)) {
-        await client.criarPasta(slug, { name: formatarNomePasta(grupo.folderSlug), slug: grupo.folderSlug }, workspace);
+        await (await getClient()).criarPasta(slug, { name: formatarNomePasta(grupo.folderSlug), slug: grupo.folderSlug }, workspace);
         pastasExistentes.push({
           id: grupo.folderSlug,
           name: formatarNomePasta(grupo.folderSlug),
@@ -579,7 +599,7 @@ server.tool(
         continue;
       }
 
-      const resultado = await client.push({
+      const resultado = await (await getClient()).push({
         workspace,
         project: slug,
         folderSlug: grupo.folderSlug,
@@ -598,7 +618,7 @@ server.tool(
     }
 
     for (const [clientId, itensGlobais] of Object.entries(gruposEscopo.globalByClient)) {
-      const existentesGlobais = await client.pull({ scope: 'global', clientId });
+      const existentesGlobais = await (await getClient()).pull({ scope: 'global', clientId });
       const slugsExistentesGlobais = new Set(existentesGlobais.items.map((item) => `${item.type}:${item.slug}`));
       const paraEnviar = overwrite
         ? itensGlobais
@@ -610,7 +630,7 @@ server.tool(
         continue;
       }
 
-      const resultado = await client.push({ scope: 'global', clientId, items: paraEnviar });
+      const resultado = await (await getClient()).push({ scope: 'global', clientId, items: paraEnviar });
       linhas.push(
         `  - ${clientId} global: ${paraEnviar.length} item(ns) importados (${montarResumoTipos(paraEnviar)})`,
         `    criados=${resultado.created.length}, atualizados=${resultado.updated.length}, ignorados=${ignorados}`,
@@ -856,7 +876,7 @@ async function carregarItensParaPull({
   }
 
   if (scopeFinal !== 'global') {
-    const resultadoProjeto = await client.pull({
+    const resultadoProjeto = await (await getClient()).pull({
       workspace,
       project: project || 'default',
       types,
@@ -875,7 +895,7 @@ async function carregarItensParaPull({
 
   if (scopeFinal !== 'project') {
     for (const clientId of [...new Set(clientIdsGlobais)]) {
-      const resultadoGlobal = await client.pull({
+      const resultadoGlobal = await (await getClient()).pull({
         scope: 'global',
         clientId,
         types,
@@ -907,14 +927,12 @@ async function carregarItensParaPull({
 }
 
 async function resolverProjetoDestinoSync({
-  client,
   workspace,
   project,
   sourceDir,
   selectedTargets,
   dryRun,
 }: {
-  client: MyInstClient;
   workspace?: string;
   project?: string;
   sourceDir: string;
@@ -942,7 +960,7 @@ async function resolverProjetoDestinoSync({
 
   const slugDerivado = detectarNomeRepositorio(sourceDir);
   const nomeDerivado = formatarNomePasta(slugDerivado);
-  const projetos = await client.listarProjetosDoWorkspace(workspace);
+  const projetos = await (await getClient()).listarProjetosDoWorkspace(workspace);
   const existente = projetos.find((projetoAtual) => projetoAtual.slug === slugDerivado);
 
   if (existente) {
@@ -964,7 +982,7 @@ async function resolverProjetoDestinoSync({
     };
   }
 
-  await client.criarProjeto({
+  await (await getClient()).criarProjeto({
     name: nomeDerivado,
     slug: slugDerivado,
     description: `Projeto sincronizado automaticamente a partir de ${sourceDir}`,

@@ -8,10 +8,44 @@ Servidor MCP local do MyInst para sincronizar contexto agentic com o vault remot
 npm install -g @myinst/mcp-server
 ```
 
-## Execução
+## Configuração
+
+### Configuração automática (recomendado)
+
+Configure o MCP no seu cliente sem precisar de API key manual:
+
+```json
+{
+  "mcpServers": {
+    "myinst": {
+      "command": "myinst-mcp"
+    }
+  }
+}
+```
+
+Na primeira execução, o MCP abrirá automaticamente o browser para você fazer login e vincular sua conta. As credenciais são salvas localmente em `~/.myinst/credentials.json`.
+
+### Configuração manual (alternativo)
+
+Se preferir usar variáveis de ambiente:
 
 ```bash
 MYINST_API_KEY=myinst_xxx MYINST_SERVER=https://api-myinst.lotoscore.com.br myinst-mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "myinst": {
+      "command": "myinst-mcp",
+      "env": {
+        "MYINST_API_KEY": "{{MYINST_API_KEY}}",
+        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
+      }
+    }
+  }
+}
 ```
 
 ## O que ele faz
@@ -124,8 +158,8 @@ myinst-mcp --version
 ## Requisitos
 
 - Node.js 22+
-- API key do MyInst
-- backend MyInst acessível
+- Backend MyInst acessível
+- Browser disponível (para autenticação automática na primeira execução)
 
 ## Documentação complementar
 

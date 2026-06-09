@@ -179,4 +179,7 @@ export const api = {
       return request<any[]>(`/search?${searchParams.toString()}`);
     },
   },
+  mcp: {
+    conectar: () => request<{ key: string }>('/mcp/token', { method: 'POST' }),
+  },
 };

@@ -42,16 +42,23 @@ O jeito mais rápido de conectar o MyInst ao seu cliente MCP é instalar o servi
 npm install -g @myinst/mcp-server
 ```
 
-Depois configure o cliente com:
+Depois configure o cliente:
 
-- `command`: `myinst-mcp`
-- `MYINST_API_KEY`: sua API key da conta
-- `MYINST_SERVER`: `https://api-myinst.lotoscore.com.br`
+```json
+{
+  "mcpServers": {
+    "myinst": {
+      "command": "myinst-mcp"
+    }
+  }
+}
+```
 
-Nunca cole chaves reais na documentação ou config de exemplo.  
-Use placeholders e aplique valores reais apenas no ambiente local, em um arquivo de configuração privado.
+Na primeira execução, o MCP abrirá automaticamente o browser para você fazer login e vincular sua conta. As credenciais são salvas localmente em `~/.myinst/credentials.json`.
 
-Exemplo:
+### Configuração manual (alternativo)
+
+Se preferir usar variáveis de ambiente:
 
 ```json
 {
@@ -66,6 +73,9 @@ Exemplo:
   }
 }
 ```
+
+Nunca cole chaves reais na documentação ou config de exemplo.  
+Use placeholders e aplique valores reais apenas no ambiente local, em um arquivo de configuração privado.
 
 Referências:
 
