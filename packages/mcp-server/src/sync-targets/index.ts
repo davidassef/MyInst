@@ -625,9 +625,10 @@ function criarAdapterOpenCode(): ClienteAdapter {
       return targets;
     },
     ler: async (target) => {
+      const raizProjeto = resolverRaizProjetoPorPath(target.detectedPaths[0]);
       const base = target.scope === 'global'
         ? join(homedir(), '.config', 'opencode')
-        : resolverRaizProjetoPorPath(target.detectedPaths[0]);
+        : join(raizProjeto, '.opencode');
 
       const itens = new Map<string, ItemSincronizavel>();
 
@@ -1249,9 +1250,10 @@ async function escreverEstruturaCursor(items: ItemSincronizavel[], target: SyncT
 }
 
 async function escreverEstruturaOpenCode(items: ItemSincronizavel[], target: SyncTarget): Promise<EscritaCliente> {
+  const raizProjeto = resolverRaizProjetoPorPath(target.detectedPaths[0]);
   const base = target.scope === 'global'
     ? join(homedir(), '.config', 'opencode')
-    : resolverRaizProjetoPorPath(target.detectedPaths[0]);
+    : join(raizProjeto, '.opencode');
   const written: EscritaCliente['written'] = [];
   const ignored: EscritaCliente['ignored'] = [];
 
