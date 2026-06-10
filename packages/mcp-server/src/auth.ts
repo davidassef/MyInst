@@ -110,13 +110,19 @@ export async function iniciarFluxoAutenticacao(serverUrlEnv?: string): Promise<A
       porta = address.port;
       const urlConexao = `${appUrl}/connect-mcp?callback_port=${porta}`;
 
-      console.error(`[INFO] Aguardando autenticação em http://localhost:${porta}`);
-      console.error(`[INFO] Abrindo browser: ${urlConexao}`);
+      console.error('');
+      console.error('═══════════════════════════════════════════════════════');
+      console.error('  AUTENTICAÇÃO MYINST MCP NECESSÁRIA');
+      console.error('');
+      console.error(`  Abra este link no seu navegador:`);
+      console.error(`  ${urlConexao}`);
+      console.error('');
+      console.error('  Após autenticar, volte ao openCode. O servidor');
+      console.error('  aguardará o callback automaticamente.');
+      console.error('═══════════════════════════════════════════════════════');
+      console.error('');
 
-      abrirBrowser(urlConexao).catch((err) => {
-        console.error(`[WARN] Não foi possível abrir browser automaticamente: ${err.message}`);
-        console.error(`[INFO] Abra manualmente: ${urlConexao}`);
-      });
+      abrirBrowser(urlConexao).catch(() => {});
 
       timeoutId = setTimeout(() => {
         limpar();

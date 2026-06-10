@@ -63,7 +63,7 @@ async function inicializarClient(): Promise<MyInstClient> {
     return new MyInstClient(credenciais.serverUrl, credenciais.token);
   }
 
-  console.error('[INFO] Nenhuma credencial encontrada. Iniciando autenticação via browser...');
+  console.error('[INFO] Nenhuma credencial encontrada. Iniciando autenticação...');
 
   const resultado = await iniciarFluxoAutenticacao(serverUrlEnv);
   return new MyInstClient(resultado.serverUrl, resultado.token);

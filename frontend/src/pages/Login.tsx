@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api, salvarToken } from '@/lib/api';
@@ -14,21 +14,17 @@ export function LoginPage() {
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [returnUrl, setReturnUrl] = useState<string | null>(null);
+  const returnUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenOAuth = params.get('token');
     const erroOAuth = params.get('oauth_error');
-    const retorno = params.get('return_url');
-
-    if (retorno) {
-      setReturnUrl(retorno);
-    }
+    const redirectUrl = params.get('return_url');
 
     if (tokenOAuth) {
       salvarToken(tokenOAuth);
-      const destino = returnUrl || '/';
-      navigate(destino, { replace: true });
+      navigate(redirectUrl || '/', { replace: true });
       return;
     }
 
@@ -36,7 +32,12 @@ export function LoginPage() {
       setErro('Não foi possível concluir o login OAuth.');
       window.history.replaceState(null, '', '/login');
     }
-  }, [navigate, returnUrl]);
+
+    if (redirectUrl) {
+      returnUrlRef.current = redirectUrl;
+      setReturnUrl(redirectUrl);
+    }
+  }, [navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,7 +53,7 @@ export function LoginPage() {
         salvarToken(resultado.token);
       }
 
-      navigate(returnUrl || '/', { replace: true });
+      navigate(returnUrlRef.current || '/', { replace: true });
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao autenticar');
     } finally {
