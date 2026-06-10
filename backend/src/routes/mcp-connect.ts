@@ -12,9 +12,8 @@ export async function mcpConnectRoutes(app: FastifyInstance) {
     preHandler: [autenticar],
   }, async (request, reply) => {
     const nomeData = new Date().toISOString().split('T')[0];
-    const name = `MCP Server - ${nomeData}`;
-
     const rawKey = `${API_KEY_PREFIX}${randomBytes(24).toString('base64url')}`;
+    const name = `MCP Server - ${nomeData} (${rawKey.slice(0, 14)})`;
     const keyPrefix = rawKey.slice(0, 14);
     const keyHash = createHash('sha256').update(rawKey).digest('hex');
 

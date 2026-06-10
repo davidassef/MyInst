@@ -45,8 +45,12 @@ services:
         max-file: "3"
     networks:
       - shared-infra-net
+      - traefik-public
 
 networks:
   shared-infra-net:
     external: true
     name: shared-infra-net
+  traefik-public:
+    external: true
+    name: traefik-public
