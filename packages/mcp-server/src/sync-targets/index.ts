@@ -70,6 +70,7 @@ interface ContextoSync {
 
 const TIPOS_FULL: TipoSincronizavel[] = ['skill', 'instruction', 'mcp_config', 'agent', 'command', 'hook', 'memory', 'output_style', 'setting', 'snippet'];
 const TIPOS_PARTIAL: TipoSincronizavel[] = ['instruction', 'mcp_config', 'setting'];
+const TIPOS_OPENCODE: TipoSincronizavel[] = ['skill', 'instruction', 'agent', 'command', 'output_style', 'setting', 'snippet'];
 const TIPOS_CLAUDE_GLOBAL: TipoSincronizavel[] = ['instruction', 'agent', 'command', 'output_style', 'setting'];
 const TIPOS_CURSOR: TipoSincronizavel[] = ['skill', 'instruction', 'mcp_config', 'setting'];
 const TIPOS_QWEN: TipoSincronizavel[] = ['instruction', 'setting'];
@@ -555,32 +556,39 @@ function criarAdapterOpenCode(): ClienteAdapter {
   return {
     id: 'opencode',
     nome: 'OpenCode',
-    nivelSuporte: 'partial',
+    nivelSuporte: 'full',
     escopoSuportado: 'all',
-    tiposSuportados: TIPOS_PARTIAL,
+    tiposSuportados: TIPOS_OPENCODE,
     detectar: async (ctx, scope) => {
       const targets: SyncTarget[] = [];
 
       if (scope !== 'global') {
         if (!ehRaizGlobalCliente(ctx.projectDir, ctx.userHome, 'opencode')) {
-          const caminhoConfigProjeto = join(ctx.projectDir, 'opencode.json');
-          if (await existe(caminhoConfigProjeto)) {
-            const encontrados = await filtrarExistentes([
-              caminhoConfigProjeto,
-              join(ctx.projectDir, 'AGENTS.md'),
-            ]);
+          const base = join(ctx.projectDir, '.opencode');
+          const encontrados = await filtrarExistentes([
+            join(base, 'skills'),
+            join(base, 'agents'),
+            join(base, 'commands'),
+            join(base, 'output-styles'),
+            join(base, 'AGENTS.md'),
+            join(ctx.projectDir, 'opencode.json'),
+            join(ctx.projectDir, 'opencode.jsonc'),
+          ]);
 
-            if (encontrados.length > 0) {
-              targets.push({
-                clientId: 'opencode',
-                clientName: 'OpenCode',
-                supportLevel: 'partial',
-                scope: 'project',
-                detectedPaths: encontrados,
-                supportedTypes: TIPOS_PARTIAL,
-                estimatedItemCount: encontrados.length,
-              });
-            }
+          if (encontrados.length > 0) {
+            targets.push({
+              clientId: 'opencode',
+              clientName: 'OpenCode',
+              supportLevel: 'full',
+              scope: 'project',
+              detectedPaths: encontrados,
+              supportedTypes: TIPOS_OPENCODE,
+              estimatedItemCount: await contarArquivosSkillPorEstrutura(join(base, 'skills'))
+                + await contarArquivosSkillPorEstrutura(join(base, 'agents'))
+                + await contarArquivosSkillPorEstrutura(join(base, 'commands'))
+                + await contarArquivosSkillPorEstrutura(join(base, 'output-styles'))
+                + 1,
+            });
           }
         }
       }
@@ -588,19 +596,28 @@ function criarAdapterOpenCode(): ClienteAdapter {
       if (scope !== 'project') {
         const base = join(ctx.userHome, '.config', 'opencode');
         const encontrados = await filtrarExistentes([
+          join(base, 'skills'),
+          join(base, 'agents'),
+          join(base, 'commands'),
+          join(base, 'output-styles'),
           join(base, 'AGENTS.md'),
           join(base, 'opencode.json'),
+          join(base, 'opencode.jsonc'),
         ]);
 
         if (encontrados.length > 0) {
           targets.push({
             clientId: 'opencode',
             clientName: 'OpenCode',
-            supportLevel: 'partial',
+            supportLevel: 'full',
             scope: 'global',
             detectedPaths: encontrados,
-            supportedTypes: TIPOS_PARTIAL,
-            estimatedItemCount: encontrados.length,
+            supportedTypes: TIPOS_OPENCODE,
+            estimatedItemCount: await contarArquivosSkillPorEstrutura(join(base, 'skills'))
+              + await contarArquivosSkillPorEstrutura(join(base, 'agents'))
+              + await contarArquivosSkillPorEstrutura(join(base, 'commands'))
+              + await contarArquivosSkillPorEstrutura(join(base, 'output-styles'))
+              + 1,
           });
         }
       }
@@ -612,12 +629,27 @@ function criarAdapterOpenCode(): ClienteAdapter {
         ? join(homedir(), '.config', 'opencode')
         : resolverRaizProjetoPorPath(target.detectedPaths[0]);
 
-      return [
-        ...(await lerArquivosEspecificos([
-          { path: join(base, 'AGENTS.md'), slug: 'agents', type: 'instruction' },
-        ])),
-        ...(await lerArquivoConfiguracaoComRedacao(join(base, 'opencode.json'), 'opencode-config', 'OpenCode Config', 'setting')),
-      ];
+      const itens = new Map<string, ItemSincronizavel>();
+
+      await lerSkillsPorEstrutura(join(base, 'skills'), itens);
+      await lerSkillsPorEstrutura(join(base, 'agents'), itens);
+      await lerSkillsPorEstrutura(join(base, 'commands'), itens);
+      await lerSkillsPorEstrutura(join(base, 'output-styles'), itens);
+
+      for (const item of await lerArquivosEspecificos([
+        { path: join(base, 'AGENTS.md'), slug: 'agents', type: 'instruction' },
+      ])) {
+        itens.set(`instruction:${item.slug}`, item);
+      }
+
+      const caminhoConfig = join(base, 'opencode.jsonc');
+      if (await existe(caminhoConfig)) {
+        await lerArquivoConfiguracaoComRedacaoNoMapa(caminhoConfig, 'opencode-config', 'OpenCode Config', 'setting', itens);
+      } else {
+        await lerArquivoConfiguracaoComRedacaoNoMapa(join(base, 'opencode.json'), 'opencode-config', 'OpenCode Config', 'setting', itens);
+      }
+
+      return [...itens.values()];
     },
     escrever: async (items, target) => escreverEstruturaOpenCode(items, target),
   };
@@ -1222,38 +1254,52 @@ async function escreverEstruturaOpenCode(items: ItemSincronizavel[], target: Syn
     : resolverRaizProjetoPorPath(target.detectedPaths[0]);
   const written: EscritaCliente['written'] = [];
   const ignored: EscritaCliente['ignored'] = [];
-  const instrucoes = items.filter((item) => item.type === 'instruction');
-  const configs = items.filter((item) => item.type === 'setting' || item.type === 'mcp_config');
 
+  const regras: Partial<Record<TipoSincronizavel, { file?: string; dir?: string; ext?: string } | undefined>> = {
+    skill: { dir: join(base, 'skills'), ext: '/SKILL.md' },
+    agent: { dir: join(base, 'agents'), ext: '/SKILL.md' },
+    command: { dir: join(base, 'commands'), ext: '/SKILL.md' },
+    output_style: { dir: join(base, 'output-styles'), ext: '/SKILL.md' },
+    instruction: { file: join(base, 'AGENTS.md') },
+  };
+
+  const instrucoes = items.filter((item) => item.type === 'instruction');
   if (instrucoes.length > 0) {
     const caminhoInstrucoes = join(base, 'AGENTS.md');
     await mkdir(dirname(caminhoInstrucoes), { recursive: true });
     await writeFile(caminhoInstrucoes, combinarInstrucoesOpenCode(instrucoes), 'utf-8');
-
     for (const item of instrucoes) {
       written.push({ path: caminhoInstrucoes, type: item.type, slug: item.slug });
     }
   }
 
+  const configs = items.filter((item) => item.type === 'setting' || item.type === 'mcp_config');
   if (configs.length > 0) {
-    const caminhoConfig = join(base, 'opencode.json');
+    const caminhoConfig = join(base, 'opencode.jsonc');
     const configPrincipal = escolherConfigPrincipalOpenCode(configs);
     await mkdir(dirname(caminhoConfig), { recursive: true });
     await writeFile(caminhoConfig, configPrincipal.body, 'utf-8');
     written.push({ path: caminhoConfig, type: configPrincipal.type, slug: configPrincipal.slug });
-
     for (const item of configs) {
       if (item.slug === configPrincipal.slug && item.type === configPrincipal.type) continue;
-      ignored.push({ type: item.type, slug: item.slug, reason: 'opencode.json já foi reservado por um item de maior precedência' });
+      ignored.push({ type: item.type, slug: item.slug, reason: 'opencode.jsonc já foi reservado por um item de maior precedência' });
     }
   }
 
   for (const item of items) {
-    if (item.type === 'instruction' || item.type === 'setting' || item.type === 'mcp_config') {
+    if (item.type === 'instruction' || item.type === 'setting' || item.type === 'mcp_config') continue;
+    const regra = regras[item.type];
+    if (!regra || !regra.dir || !regra.ext) {
+      ignored.push({ type: item.type, slug: item.slug, reason: 'tipo sem suporte nativo neste cliente' });
       continue;
     }
-
-    ignored.push({ type: item.type, slug: item.slug, reason: 'tipo sem suporte nativo neste cliente' });
+    const caminho = regra.ext.startsWith('/')
+      ? join(regra.dir, item.slug, regra.ext.slice(1))
+      : join(regra.dir, `${item.slug}${regra.ext}`);
+    if (written.some((w) => w.path === caminho)) continue;
+    await mkdir(dirname(caminho), { recursive: true });
+    await writeFile(caminho, item.body, 'utf-8');
+    written.push({ path: caminho, type: item.type, slug: item.slug });
   }
 
   return {
@@ -1449,7 +1495,7 @@ function resolverRaizProjetoPorPath(path: string) {
   if (!path) return process.cwd();
 
   const normalizado = resolve(path);
-  const marcadores = ['.claude', '.codex', '.cursor', '.qwen'];
+  const marcadores = ['.claude', '.codex', '.cursor', '.qwen', '.opencode'];
   const marcador = marcadores.find((entry) => normalizado.includes(`${entry}\\`) || normalizado.includes(`${entry}/`));
 
   if (!marcador) {

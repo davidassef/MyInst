@@ -699,7 +699,7 @@ function filtrarItensPorCliente(items: ItemSincronizavel[], clientId: string) {
     codex: ['skill', 'instruction', 'mcp_config', 'setting'],
     cursor: ['skill', 'instruction', 'mcp_config', 'setting'],
     gemini: ['instruction', 'mcp_config'],
-    opencode: ['instruction', 'setting'],
+    opencode: ['skill', 'instruction', 'agent', 'command', 'output_style', 'setting', 'snippet'],
     qwen: ['instruction', 'setting'],
     aider: ['instruction', 'mcp_config'],
     antigravity: ['setting'],
