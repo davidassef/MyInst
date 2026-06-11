@@ -184,12 +184,12 @@ const MATRIZ_COMPATIBILIDADE: RegraCompatibilidadePar[] = [
     targetClient: 'opencode',
     status: 'supported',
     allowedSourceTypes: ['instruction', 'skill', 'agent', 'command', 'output_style', 'setting'],
-    targetSupportedTypes: ['instruction'],
+    targetSupportedTypes: ['instruction', 'skill'],
     transformadores: {
       instruction: (item) => clonarComoReplicado('claude', item),
+      skill: (item) => clonarComoReplicado('claude', item),
     },
     ignoredTypeReasons: {
-      skill: 'no_rule',
       agent: 'incompatible',
       command: 'incompatible',
       output_style: 'incompatible',
@@ -205,12 +205,12 @@ const MATRIZ_COMPATIBILIDADE: RegraCompatibilidadePar[] = [
     targetClient: 'opencode',
     status: 'supported',
     allowedSourceTypes: ['instruction', 'skill', 'setting'],
-    targetSupportedTypes: ['instruction'],
+    targetSupportedTypes: ['instruction', 'skill'],
     transformadores: {
       instruction: (item) => clonarComoReplicado('codex', item),
+      skill: (item) => clonarComoReplicado('codex', item),
     },
     ignoredTypeReasons: {
-      skill: 'no_rule',
       setting: 'incompatible',
       mcp_config: 'incompatible',
       agent: 'incompatible',
