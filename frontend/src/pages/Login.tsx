@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { LockKeyhole, ShieldCheck } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { BookOpen, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, salvarToken } from '@/lib/api';
 import { useBrand } from '@/components/BrandProvider';
 
@@ -223,6 +223,14 @@ export function LoginPage() {
               Depois do login, gere sua API key na área da conta e use o fluxo padrão do vault:
               {' '}<span className="text-slate-200">pull, trabalho local, push</span>.
             </p>
+
+            <Link
+              to="/mcp"
+              className="mt-5 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-slate-200 transition hover:border-cyan-300/24 hover:bg-cyan-300/8 hover:text-white"
+            >
+              <BookOpen size={16} />
+              Ler documentação completa do MCP
+            </Link>
           </div>
         </section>
 

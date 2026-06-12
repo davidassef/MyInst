@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { estaAutenticado } from './lib/api';
 import { LoginPage } from './pages/Login';
+import { McpDocsPage } from './pages/McpDocs';
 import { ConnectMcpPage } from './pages/ConnectMcp';
 import { DashboardPage } from './pages/Dashboard';
 import { WorkspacePage } from './pages/Workspace';
@@ -19,6 +20,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/mcp" element={<McpDocsPage />} />
       <Route path="/connect-mcp" element={<ConnectMcpPage />} />
       <Route
         path="/"
