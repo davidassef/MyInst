@@ -6,7 +6,7 @@ O `@myinst/mcp-server` roda localmente na máquina do usuário e conecta cliente
 
 Ele existe para:
 
-- autenticar no backend com `MYINST_API_KEY`
+- autenticar automaticamente no backend via login no navegador ou, opcionalmente, com `MYINST_API_KEY`
 - listar workspaces e projetos
 - materializar conteúdo do vault localmente
 - importar estruturas conhecidas de clientes
@@ -35,11 +35,41 @@ Arquivo: `C:\Users\seu-usuario\.codex\config.toml`
 command = "myinst-mcp"
 
 [mcp_servers.myinst.env]
-MYINST_API_KEY = "{{MYINST_API_KEY}}"
 MYINST_SERVER = "https://api-myinst.lotoscore.com.br"
 ```
 
 ### Claude Code
+
+```json
+{
+  "mcpServers": {
+    "myinst": {
+      "command": "myinst-mcp",
+      "env": {
+        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
+      }
+    }
+  }
+}
+```
+
+### Cursor e outros clientes compatíveis
+
+Use o mesmo binário e as mesmas variáveis de ambiente nos campos equivalentes do cliente.
+
+Na primeira execução sem credencial local, o MCP inicia um callback temporário em `localhost`, abre o navegador em `/connect-mcp`, redireciona para login quando necessário e gera a API key automaticamente após autorização. Essa credencial fica salva localmente na máquina do usuário.
+
+Gerar uma API key manual e configurar `MYINST_API_KEY` continua suportado, mas é um fallback para ambientes sem navegador, automação bloqueada ou configuração manual controlada.
+
+## Variáveis de ambiente
+
+| Variável | Obrigatória | Descrição |
+|----------|:-----------:|-----------|
+| `MYINST_API_KEY` | Não | API key manual da conta. Se omitida, o MCP usa login automático por navegador |
+| `MYINST_SERVER` | Não | URL da API MyInst. Em produção: `https://api-myinst.lotoscore.com.br` |
+| `MYINST_MODEL` | Não | modelo usado para match automático de perfil no pull |
+
+Fallback manual:
 
 ```json
 {
@@ -54,18 +84,6 @@ MYINST_SERVER = "https://api-myinst.lotoscore.com.br"
   }
 }
 ```
-
-### Cursor e outros clientes compatíveis
-
-Use o mesmo binário e as mesmas variáveis de ambiente nos campos equivalentes do cliente.
-
-## Variáveis de ambiente
-
-| Variável | Obrigatória | Descrição |
-|----------|:-----------:|-----------|
-| `MYINST_API_KEY` | Sim | API key da conta |
-| `MYINST_SERVER` | Não | URL da API MyInst. Em produção: `https://api-myinst.lotoscore.com.br` |
-| `MYINST_MODEL` | Não | modelo usado para match automático de perfil no pull |
 
 ## Fluxo oficial
 

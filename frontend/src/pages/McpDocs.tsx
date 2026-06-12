@@ -73,7 +73,7 @@ export function McpDocsPage() {
               <ResumoItem
                 icon={<KeyRound size={18} />}
                 titulo="Autenticacao"
-                texto="Use uma API key da conta em MYINST_API_KEY. Exemplos publicos devem usar placeholders."
+                texto="Por padrao, o MCP abre o navegador para login e gera a chave automaticamente. MYINST_API_KEY manual e opcional."
               />
               <ResumoItem
                 icon={<LockKeyhole size={18} />}
@@ -90,8 +90,8 @@ export function McpDocsPage() {
             numero="2"
             titulo="Configure o cliente MCP"
             codigo={`command: myinst-mcp
-MYINST_API_KEY: {{MYINST_API_KEY}}
-MYINST_SERVER: https://api-myinst.lotoscore.com.br`}
+MYINST_SERVER: https://api-myinst.lotoscore.com.br
+MYINST_API_KEY: opcional`}
           />
           <Etapa
             numero="3"
@@ -102,10 +102,52 @@ myinst_push`}
           />
         </section>
 
+        <Secao titulo="Autenticacao automatica">
+          <div className="grid gap-4 md:grid-cols-3">
+            <CartaoTexto
+              titulo="Fluxo padrao"
+              texto="Configure apenas o comando myinst-mcp e, opcionalmente, MYINST_SERVER. Na primeira execucao sem credencial local, o MCP inicia um servidor temporario em localhost e abre o navegador."
+            />
+            <CartaoTexto
+              titulo="Login e autorizacao"
+              texto="A pagina /connect-mcp redireciona para login quando necessario. Depois de autenticar, o usuario confirma a conexao e uma API key e gerada automaticamente para o MCP."
+            />
+            <CartaoTexto
+              titulo="Credencial local"
+              texto="A chave gerada e retornada para o servidor local do MCP e salva na maquina do usuario. Gerar API key manualmente continua possivel, mas e um fallback para ambientes sem browser ou automacao."
+            />
+          </div>
+        </Secao>
+
         <Secao titulo="Configuracao MCP">
           <div className="grid gap-5 lg:grid-cols-2">
             <BlocoCodigo
-              titulo="JSON para clientes compativeis"
+              titulo="JSON recomendado com login automatico"
+              codigo={`{
+  "mcpServers": {
+    "myinst": {
+      "command": "myinst-mcp",
+      "env": {
+        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
+      }
+    }
+  }
+}`}
+            />
+
+            <BlocoCodigo
+              titulo="Codex config.toml recomendado"
+              codigo={`[mcp_servers.myinst]
+command = "myinst-mcp"
+
+[mcp_servers.myinst.env]
+MYINST_SERVER = "https://api-myinst.lotoscore.com.br"`}
+            />
+          </div>
+
+          <div className="mt-5">
+            <BlocoCodigo
+              titulo="Fallback com API key manual"
               codigo={`{
   "mcpServers": {
     "myinst": {
@@ -117,16 +159,6 @@ myinst_push`}
     }
   }
 }`}
-            />
-
-            <BlocoCodigo
-              titulo="Codex config.toml"
-              codigo={`[mcp_servers.myinst]
-command = "myinst-mcp"
-
-[mcp_servers.myinst.env]
-MYINST_API_KEY = "{{MYINST_API_KEY}}"
-MYINST_SERVER = "https://api-myinst.lotoscore.com.br"`}
             />
           </div>
         </Secao>
@@ -214,12 +246,13 @@ MYINST_SERVER = "https://api-myinst.lotoscore.com.br"`}
           <BlocoCodigo
             titulo="Sequencia para um agente"
             codigo={`1. Ler esta pagina.
-2. Confirmar que MYINST_API_KEY e MYINST_SERVER estao configurados no cliente MCP.
-3. Rodar myinst_list_sync_targets para detectar clients e escopos.
-4. Rodar myinst_pull com scope e clients explicitos quando necessario.
-5. Ler .myinst/MYINST.md no repositorio alvo.
-6. Trabalhar nos arquivos locais materializados.
-7. Rodar myinst_push somente apos revisar que nao ha segredos reais.`}
+2. Confirmar que myinst-mcp esta configurado no cliente MCP.
+3. Se nao houver credencial local, aguardar o navegador abrir /connect-mcp, fazer login e autorizar.
+4. Rodar myinst_list_sync_targets para detectar clients e escopos.
+5. Rodar myinst_pull com scope e clients explicitos quando necessario.
+6. Ler .myinst/MYINST.md no repositorio alvo.
+7. Trabalhar nos arquivos locais materializados.
+8. Rodar myinst_push somente apos revisar que nao ha segredos reais.`}
           />
         </Secao>
       </main>

@@ -211,7 +211,7 @@ export function LoginPage() {
 
               <BlocoCodigo
                 titulo="2. Configure no cliente MCP"
-                codigo={`{\n  "mcpServers": {\n    "myinst": {\n      "command": "myinst-mcp",\n      "env": {\n        "MYINST_API_KEY": "{{MYINST_API_KEY}}",\n        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"\n      }\n    }\n  }\n}`}
+                codigo={`{\n  "mcpServers": {\n    "myinst": {\n      "command": "myinst-mcp",\n      "env": {\n        "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"\n      }\n    }\n  }\n}`}
               />
 
               <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3 text-xs leading-6 text-cyan-100">
@@ -220,8 +220,9 @@ export function LoginPage() {
             </div>
 
             <p className="mt-4 text-sm leading-7 text-slate-400">
-              Depois do login, gere sua API key na área da conta e use o fluxo padrão do vault:
-              {' '}<span className="text-slate-200">pull, trabalho local, push</span>.
+              O MCP pode autenticar automaticamente abrindo o navegador para login e autorização.
+              Gerar uma API key manual na conta é opcional para ambientes sem esse fluxo.
+              Depois, use o padrão: <span className="text-slate-200">pull, trabalho local, push</span>.
             </p>
 
             <Link

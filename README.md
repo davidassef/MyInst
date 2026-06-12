@@ -198,7 +198,7 @@ Instalação:
 npm install -g @myinst/mcp-server
 ```
 
-Exemplo de configuração:
+Exemplo recomendado com autenticação automática:
 
 ```json
 {
@@ -206,13 +206,14 @@ Exemplo de configuração:
     "myinst": {
       "command": "myinst-mcp",
       "env": {
-        "MYINST_API_KEY": "{{MYINST_API_KEY}}",
         "MYINST_SERVER": "https://api-myinst.lotoscore.com.br"
       }
     }
   }
 }
 ```
+
+Se `MYINST_API_KEY` não for informada, o MCP abre o navegador, redireciona para login e gera a credencial automaticamente. Configurar uma API key manual continua disponível como fallback para ambientes sem navegador.
 
 ## Tools MCP
 
